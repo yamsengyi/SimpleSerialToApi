@@ -43,6 +43,19 @@ namespace SimpleSerialToApi.Configuration
     /// </summary>
     public class MessageQueueSection : ConfigurationSection
     {
+        [ConfigurationProperty("queues", IsDefaultCollection = false)]
+        public QueueElementCollection Queues
+        {
+            get { return (QueueElementCollection)this["queues"]; }
+        }
+
+        [ConfigurationProperty("processors", IsDefaultCollection = false)]
+        public ProcessorElementCollection Processors
+        {
+            get { return (ProcessorElementCollection)this["processors"]; }
+        }
+
+        // Legacy properties for backward compatibility
         [ConfigurationProperty("maxQueueSize", DefaultValue = 1000)]
         public int MaxQueueSize
         {
@@ -383,6 +396,163 @@ namespace SimpleSerialToApi.Configuration
         {
             get { return (string)this["formula"]; }
             set { this["formula"] = value; }
+        }
+    }
+
+    /// <summary>
+    /// Collection of queue configuration elements
+    /// </summary>
+    public class QueueElementCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new QueueElement();
+        }
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            return ((QueueElement)element).Name;
+        }
+
+        public QueueElement this[int index]
+        {
+            get { return (QueueElement)BaseGet(index); }
+            set
+            {
+                if (BaseGet(index) != null)
+                {
+                    BaseRemoveAt(index);
+                }
+                BaseAdd(index, value);
+            }
+        }
+
+        new public QueueElement this[string name]
+        {
+            get { return (QueueElement)BaseGet(name); }
+        }
+    }
+
+    /// <summary>
+    /// Collection of processor configuration elements
+    /// </summary>
+    public class ProcessorElementCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new ProcessorElement();
+        }
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            return ((ProcessorElement)element).QueueName;
+        }
+
+        public ProcessorElement this[int index]
+        {
+            get { return (ProcessorElement)BaseGet(index); }
+            set
+            {
+                if (BaseGet(index) != null)
+                {
+                    BaseRemoveAt(index);
+                }
+                BaseAdd(index, value);
+            }
+        }
+
+        new public ProcessorElement this[string queueName]
+        {
+            get { return (ProcessorElement)BaseGet(queueName); }
+        }
+    }
+
+    /// <summary>
+    /// Configuration element for individual queue settings
+    /// </summary>
+    public class QueueElement : ConfigurationElement
+    {
+        [ConfigurationProperty("name", IsRequired = true, IsKey = true)]
+        public string Name
+        {
+            get { return (string)this["name"]; }
+            set { this["name"] = value; }
+        }
+
+        [ConfigurationProperty("maxSize", DefaultValue = 1000)]
+        public int MaxSize
+        {
+            get { return (int)this["maxSize"]; }
+            set { this["maxSize"] = value; }
+        }
+
+        [ConfigurationProperty("batchSize", DefaultValue = 10)]
+        public int BatchSize
+        {
+            get { return (int)this["batchSize"]; }
+            set { this["batchSize"] = value; }
+        }
+
+        [ConfigurationProperty("batchTimeout", DefaultValue = 5000)]
+        public int BatchTimeout
+        {
+            get { return (int)this["batchTimeout"]; }
+            set { this["batchTimeout"] = value; }
+        }
+
+        [ConfigurationProperty("retryCount", DefaultValue = 3)]
+        public int RetryCount
+        {
+            get { return (int)this["retryCount"]; }
+            set { this["retryCount"] = value; }
+        }
+
+        [ConfigurationProperty("retryInterval", DefaultValue = 5000)]
+        public int RetryInterval
+        {
+            get { return (int)this["retryInterval"]; }
+            set { this["retryInterval"] = value; }
+        }
+
+        [ConfigurationProperty("enablePriority", DefaultValue = true)]
+        public bool EnablePriority
+        {
+            get { return (bool)this["enablePriority"]; }
+            set { this["enablePriority"] = value; }
+        }
+    }
+
+    /// <summary>
+    /// Configuration element for queue processors
+    /// </summary>
+    public class ProcessorElement : ConfigurationElement
+    {
+        [ConfigurationProperty("queueName", IsRequired = true, IsKey = true)]
+        public string QueueName
+        {
+            get { return (string)this["queueName"]; }
+            set { this["queueName"] = value; }
+        }
+
+        [ConfigurationProperty("processorType", IsRequired = true)]
+        public string ProcessorType
+        {
+            get { return (string)this["processorType"]; }
+            set { this["processorType"] = value; }
+        }
+
+        [ConfigurationProperty("threadCount", DefaultValue = 2)]
+        public int ThreadCount
+        {
+            get { return (int)this["threadCount"]; }
+            set { this["threadCount"] = value; }
+        }
+
+        [ConfigurationProperty("enableAsync", DefaultValue = true)]
+        public bool EnableAsync
+        {
+            get { return (bool)this["enableAsync"]; }
+            set { this["enableAsync"] = value; }
         }
     }
 }
