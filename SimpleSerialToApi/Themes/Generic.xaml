@@ -24,4 +24,167 @@
         </Setter>
     </Style>
     
+    <Style TargetType="{x:Type controls:LogViewer}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:LogViewer}">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ScrollViewer x:Name="PART_ScrollViewer"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Auto">
+                            <ListBox x:Name="PART_LogList"
+                                     ItemsSource="{TemplateBinding LogEntries}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.CanContentScroll="True"
+                                     VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss.fff}'}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10"
+                                                       Foreground="Gray"/>
+                                            
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Level}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10"
+                                                       FontWeight="Bold"
+                                                       Foreground="{Binding Level, Converter={StaticResource LogLevelToColorConverter}}"/>
+                                            
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding Source}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10"
+                                                       Foreground="DarkBlue"/>
+                                            
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding Message}"
+                                                       FontFamily="Consolas"
+                                                       FontSize="10"
+                                                       TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="LightGray"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    
+    <Style TargetType="{x:Type controls:ProgressRing}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:ProgressRing}">
+                    <Grid Width="{TemplateBinding RingSize}" Height="{TemplateBinding RingSize}">
+                        <Ellipse Stroke="{TemplateBinding Foreground}" 
+                                 StrokeThickness="2" 
+                                 Opacity="0.3"/>
+                        <Ellipse Name="PART_Ring" 
+                                 Stroke="{TemplateBinding Foreground}" 
+                                 StrokeThickness="2" 
+                                 StrokeDashArray="20 5">
+                            <Ellipse.RenderTransform>
+                                <RotateTransform x:Name="PART_RotateTransform" 
+                                                 CenterX="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Ellipse}, Converter={StaticResource HalfValueConverter}}"
+                                                 CenterY="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Ellipse}, Converter={StaticResource HalfValueConverter}}"/>
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsActive" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PART_RotateTransform"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0" To="360"
+                                                         Duration="0:0:2"
+                                                         RepeatBehavior="Forever"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Foreground" Value="Blue"/>
+    </Style>
+    
+    <Style TargetType="{x:Type controls:NotificationPanel}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:NotificationPanel}">
+                    <Border Background="Transparent">
+                        <ItemsControl ItemsSource="{TemplateBinding Notifications}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="LightYellow" 
+                                            BorderBrush="Orange" 
+                                            BorderThickness="1" 
+                                            CornerRadius="3" 
+                                            Margin="2" 
+                                            Padding="8,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="12"/>
+                                                <TextBlock Text="{Binding Message}" FontSize="11" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}" 
+                                                           FontSize="10" 
+                                                           Foreground="Gray"/>
+                                            </StackPanel>
+                                            
+                                            <Button Grid.Column="1" 
+                                                    Content="×" 
+                                                    FontSize="14" 
+                                                    FontWeight="Bold"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Foreground="DarkRed"
+                                                    Width="20" Height="20"
+                                                    Command="{Binding RelativeSource={RelativeSource AncestorType=controls:NotificationPanel}, 
+                                                              Path=DismissNotificationCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding CanDismiss, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    ToolTip="Dismiss"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    
+    <!-- Converter for halving a value (used by ProgressRing) -->
+    <Style x:Key="HalfValueConverter" TargetType="FrameworkElement">
+        <Setter Property="Tag" Value="{Binding RelativeSource={RelativeSource Self}, Path=ActualWidth, 
+                                       Converter={StaticResource MathConverter}, ConverterParameter='x/2'}"/>
+    </Style>
+    
 </ResourceDictionary>

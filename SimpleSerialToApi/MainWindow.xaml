@@ -14,6 +14,7 @@
         <converters:StatusToColorConverter x:Key="StatusToColorConverter" />
         <converters:ApplicationStateToColorConverter x:Key="ApplicationStateToColorConverter" />
         <converters:BooleanToColorConverter x:Key="BooleanToColorConverter" />
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:LogLevelToColorConverter x:Key="LogLevelToColorConverter" />
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
         
