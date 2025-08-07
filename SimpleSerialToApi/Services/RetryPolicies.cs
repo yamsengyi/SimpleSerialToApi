@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -33,8 +34,7 @@ namespace SimpleSerialToApi.Services
                     sleepDurationProvider: retryAttempt => _config.GetDelay(retryAttempt),
                     onRetry: (outcome, timespan, retryCount, context) =>
                     {
-                        _logger.LogWarning("Retry attempt {RetryCount} in {Delay}ms due to: {ExceptionMessage}",
-                            retryCount, timespan.TotalMilliseconds, outcome.Exception?.Message);
+                        _logger.LogWarning("Retry attempt {Attempt} in {Delay}ms", retryCount, timespan.TotalMilliseconds);
                     });
         }
 
@@ -111,8 +111,7 @@ namespace SimpleSerialToApi.Services
                     sleepDurationProvider: _ => TimeSpan.FromMilliseconds(_config.BaseDelayMilliseconds),
                     onRetry: (outcome, timespan, retryCount, context) =>
                     {
-                        _logger.LogWarning("Retry attempt {RetryCount} in {Delay}ms due to: {ExceptionMessage}",
-                            retryCount, timespan.TotalMilliseconds, outcome.Exception?.Message);
+                        _logger.LogWarning("Retry attempt {Attempt} in {Delay}ms", retryCount, timespan.TotalMilliseconds);
                     });
         }
 
