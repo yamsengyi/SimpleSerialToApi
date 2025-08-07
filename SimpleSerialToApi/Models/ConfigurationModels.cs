@@ -11,6 +11,8 @@ namespace SimpleSerialToApi.Models
         public string AuthType { get; set; } = string.Empty;
         public string AuthToken { get; set; } = string.Empty;
         public int Timeout { get; set; } = 30000;
+        public int RetryAttempts { get; set; } = 3;
+        public string ContentType { get; set; } = "application/json";
         public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
     }
 
