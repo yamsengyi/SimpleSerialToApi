@@ -61,13 +61,13 @@ Windows 환경에서 Serial 통신으로 장비 데이터를 수집한 뒤, 지�
 
 ### 4. UI 요구사항
 - Serial 연결상태, API 전송상태 실시간 표시
-- 설정값(App.Config) 확인 및 수정 지원(가능하다면)
+- 설정값(App.Config)을 통한 초기화 기능
 - 로그 및 오류 내역 조회 기능
 
 ---
 
 ### 5. 기술 요구사항
-- dotnet 8 기반 WinForms 또는 WPF (C#)
+- dotnet 8 기반 WPF (C#)
 - System.IO.Ports, HttpClient, ConfigurationManager 등 표준 라이브러리 활용
 - 단위 테스트 프로젝트 포함
 
