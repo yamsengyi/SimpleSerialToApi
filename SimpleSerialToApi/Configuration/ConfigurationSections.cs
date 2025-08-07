@@ -21,6 +21,24 @@ namespace SimpleSerialToApi.Configuration
     }
 
     /// <summary>
+    /// Configuration section for parsing rules
+    /// </summary>
+    public class ParsingRulesSection : ConfigurationSection
+    {
+        [ConfigurationProperty("rules", IsDefaultCollection = false)]
+        public ParsingRuleElementCollection Rules
+        {
+            get { return (ParsingRuleElementCollection)this["rules"]; }
+        }
+
+        [ConfigurationProperty("converters", IsDefaultCollection = false)]
+        public ConverterElementCollection Converters
+        {
+            get { return (ConverterElementCollection)this["converters"]; }
+        }
+    }
+
+    /// <summary>
     /// Configuration section for message queue settings
     /// </summary>
     public class MessageQueueSection : ConfigurationSection
@@ -215,6 +233,156 @@ namespace SimpleSerialToApi.Configuration
         {
             get { return (bool)this["isRequired"]; }
             set { this["isRequired"] = value; }
+        }
+    }
+
+    /// <summary>
+    /// Collection of parsing rule configuration elements
+    /// </summary>
+    public class ParsingRuleElementCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new ParsingRuleElement();
+        }
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            return ((ParsingRuleElement)element).Name;
+        }
+
+        public ParsingRuleElement this[int index]
+        {
+            get { return (ParsingRuleElement)BaseGet(index); }
+            set
+            {
+                if (BaseGet(index) != null)
+                {
+                    BaseRemoveAt(index);
+                }
+                BaseAdd(index, value);
+            }
+        }
+
+        new public ParsingRuleElement this[string name]
+        {
+            get { return (ParsingRuleElement)BaseGet(name); }
+        }
+    }
+
+    /// <summary>
+    /// Collection of converter configuration elements
+    /// </summary>
+    public class ConverterElementCollection : ConfigurationElementCollection
+    {
+        protected override ConfigurationElement CreateNewElement()
+        {
+            return new ConverterElement();
+        }
+
+        protected override object GetElementKey(ConfigurationElement element)
+        {
+            return ((ConverterElement)element).Name;
+        }
+
+        public ConverterElement this[int index]
+        {
+            get { return (ConverterElement)BaseGet(index); }
+            set
+            {
+                if (BaseGet(index) != null)
+                {
+                    BaseRemoveAt(index);
+                }
+                BaseAdd(index, value);
+            }
+        }
+
+        new public ConverterElement this[string name]
+        {
+            get { return (ConverterElement)BaseGet(name); }
+        }
+    }
+
+    /// <summary>
+    /// Configuration element for parsing rules
+    /// </summary>
+    public class ParsingRuleElement : ConfigurationElement
+    {
+        [ConfigurationProperty("name", IsRequired = true, IsKey = true)]
+        public string Name
+        {
+            get { return (string)this["name"]; }
+            set { this["name"] = value; }
+        }
+
+        [ConfigurationProperty("pattern", IsRequired = true)]
+        public string Pattern
+        {
+            get { return (string)this["pattern"]; }
+            set { this["pattern"] = value; }
+        }
+
+        [ConfigurationProperty("fields", IsRequired = true)]
+        public string Fields
+        {
+            get { return (string)this["fields"]; }
+            set { this["fields"] = value; }
+        }
+
+        [ConfigurationProperty("dataTypes", IsRequired = true)]
+        public string DataTypes
+        {
+            get { return (string)this["dataTypes"]; }
+            set { this["dataTypes"] = value; }
+        }
+
+        [ConfigurationProperty("dataFormat", DefaultValue = "TEXT")]
+        public string DataFormat
+        {
+            get { return (string)this["dataFormat"]; }
+            set { this["dataFormat"] = value; }
+        }
+
+        [ConfigurationProperty("priority", DefaultValue = 1)]
+        public int Priority
+        {
+            get { return (int)this["priority"]; }
+            set { this["priority"] = value; }
+        }
+    }
+
+    /// <summary>
+    /// Configuration element for converters
+    /// </summary>
+    public class ConverterElement : ConfigurationElement
+    {
+        [ConfigurationProperty("name", IsRequired = true, IsKey = true)]
+        public string Name
+        {
+            get { return (string)this["name"]; }
+            set { this["name"] = value; }
+        }
+
+        [ConfigurationProperty("sourceUnit", DefaultValue = "")]
+        public string SourceUnit
+        {
+            get { return (string)this["sourceUnit"]; }
+            set { this["sourceUnit"] = value; }
+        }
+
+        [ConfigurationProperty("targetUnit", DefaultValue = "")]
+        public string TargetUnit
+        {
+            get { return (string)this["targetUnit"]; }
+            set { this["targetUnit"] = value; }
+        }
+
+        [ConfigurationProperty("formula", DefaultValue = "")]
+        public string Formula
+        {
+            get { return (string)this["formula"]; }
+            set { this["formula"] = value; }
         }
     }
 }
