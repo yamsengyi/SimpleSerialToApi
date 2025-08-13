@@ -62,4 +62,6 @@ MIT License - 자세한 내용은 [LICENSE](doc/LICENSE.md) 참조
 
 ---
 
-**개발자**: github copilot(Claude Sonnet4)/github copilot coding agent | **관전자**: yamsengyi | **작성일**: 2025-08-14
+**개발자**: GitHub Copilot  
+**관전자**: yamsengyi  
+**작성일**: 2025-08-14
