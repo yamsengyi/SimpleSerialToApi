@@ -1,83 +1,99 @@
-# 제품 요구 사항 명세서 (PRD)  
+# 제품 요구 사항 명세서 (PRD) - 핵심 기능 중심
 ## 프로젝트명: SimpleSerialToApi (dotnet 8 기반)
 
 ---
 
 ### 1. 개요
-Windows 환경에서 Serial 통신으로 장비 데이터를 수집한 뒤, 지정 포맷에 따라 연동 API로 전송하는 로컬 애플리케이션을 개발한다. 내부 Message Queue와 App.Config 기반의 API 매핑 기능을 포함한다.
+Windows 환경에서 Serial 통신으로 장비 데이터를 수집하고, STX/ETX 기반 메시지 단위로 내부 Queue에 적재한 뒤, Timer 기반으로 주기적으로 HTTP API로 전송하는 간단하고 안정적인 로컬 애플리케이션을 개발한다.
 
 ---
 
-### 2. 주요 기능
+### 2. 핵심 기능
 
-#### 2.1 Serial 통신 및 장비 초기화
-- 사용자가 지정한 시리얼 포트(예: COM3, COM4 등)로 장비와 연결
-- App.Config 또는 별도 UI를 통해 시리얼 포트 설정(baudrate, parity, stopbits 등) 지원
-- 장비 초기화 명령을 지정 포맷으로 송신 (예: HEX, TEXT 등)
-- 초기화 결과(ACK, NACK 등) 처리 및 상태 표시
+#### 2.1 Serial 통신
+- 사용자가 지정한 시리얼 포트(COM3, COM4 등)로 장비와 연결
+- 기본 시리얼 포트 설정: baudrate, parity, stopbits
+- 실시간 Serial 데이터 수신 및 연결 상태 표시
 
-#### 2.2 장비와의 데이터 매핑 및 송수신
-- 실시간으로 Serial 데이터를 읽어 지정 포맷으로 변환
-- 수신 데이터에서 필요한 정보 파싱 및 매핑 규칙에 따라 API 전송 데이터 구조화
-- 장비와의 통신 로그 기록 및 오류 발생 시 사용자 알림
+#### 2.2 데이터 Queue 관리
+- STX/ETX 기반 메시지 파싱 및 완전한 메시지 단위로 Queue 적재
+- 간단한 FIFO Queue로 메시지 순차 처리
+- Queue 상태(대기 건수) 실시간 표시
 
-#### 2.3 API 연동 및 전송 관리
-- App.Config에 등록된 API Endpoint, 메서드, 인증정보를 기반으로 연동
-- 파싱된 데이터를 REST API(POST/PUT 등)로 전송
-- API 응답 결과(성공/실패)를 기록 및 상태 관리
+#### 2.3 HTTP API 전송
+- Timer 기반 주기적 Queue 처리 (설정 가능한 간격)
+- Queue에서 메시지를 가져와 HTTP POST로 전송
+- 기본적인 인증 지원 (Bearer Token 또는 Basic Auth)
+- 전송 성공/실패 상태 표시
 
-#### 2.4 내부 Message Queue
-- Serial 수신 이벤트 발생 시 메시지를 내부 Queue에 적재
-- Queue에 쌓인 데이터는 API 전송 순서/속도 제어를 위해 순차적으로 처리
-- 메시지 처리 실패 시 재시도 정책 및 최대 재시도 횟수 지원
-
-#### 2.5 App.Config 기반 API 매핑
-- App.Config 파일에 API Endpoint, 파라미터, 매핑 규칙 등 설정
-- 환경설정 변경 시 재시작 없이 반영(가능하다면)
-- 설정값 유효성 검사 및 오류 로그 기록
+#### 2.4 WPF UI
+- Serial 연결 상태 표시 (연결됨/끊어짐)
+- Queue 상태 표시 (대기 건수)
+- API 전송 상태 표시 (마지막 전송 시간, 성공/실패)
+- 기본 설정 입력 (COM 포트, API URL, 전송 주기)
 
 ---
 
-### 3. 비기능 요구사항
+### 3. 단순화된 요구사항
 
 #### 3.1 성능
-- 1초 이내 Serial 데이터 파싱 및 API 전송
-- 메시지 Queue는 1000건 이상 동시 처리 가능
+- 기본적인 실시간 처리 (과도한 성능 최적화 제외)
+- Queue 처리량: 일반적인 사용 범위에서 안정적 동작
 
 #### 3.2 안정성
-- 예외 및 오류 발생 시 복구 로직 내장
-- Serial/Network 장애시 자동 재연결 및 재시도
+- 기본적인 예외 처리 및 에러 로깅
+- Serial 포트 재연결 시도
+- HTTP 전송 실패 시 간단한 재시도
 
-#### 3.3 유지관리 및 확장성
-- API Endpoint 및 매핑 규칙은 App.Config에서 손쉽게 추가/변경
-- 신규 장비 포맷/프로토콜 추가 용이
-- 코드 및 기능별 로그 기록
-
-#### 3.4 보안
-- API 인증 방식(토큰, Basic Auth 등) 지원
-- 민감정보(App.Config 내 인증정보)는 암호화 저장 및 접근 제한
+#### 3.3 설정 관리
+- App.Config 기반 기본 설정
+- 런타임 설정 변경 가능 (UI를 통해)
 
 ---
 
-### 4. UI 요구사항
-- Serial 연결상태, API 전송상태 실시간 표시
-- 설정값(App.Config)을 통한 초기화 기능
-- 로그 및 오류 내역 조회 기능
+### 4. 제외된 복잡한 기능
+- ❌ 고급 Health Monitor / Diagnostics
+- ❌ 복잡한 Recovery Strategies  
+- ❌ 과도한 Configuration 시스템
+- ❌ 복합적인 Logging/Event 시스템
+- ❌ 고급 보안 기능 (기본 인증만 지원)
 
 ---
 
-### 5. 기술 요구사항
-- dotnet 8 기반 WPF (C#)
-- System.IO.Ports, HttpClient, ConfigurationManager 등 표준 라이브러리 활용
-- 단위 테스트 프로젝트 포함
+### 5. 기술 스택
+- .NET 8 WPF (C#)
+- System.IO.Ports (Serial 통신)
+- HttpClient (HTTP 전송)
+- System.Timers (주기적 처리)
+- 최소한의 외부 의존성
 
 ---
 
-### 6. 기타
-- 상세 설계 및 구현시 추가 요구사항 반영 가능
-- 필요시 개발/운영 매뉴얼 제공
+### 6. 단순화된 아키텍처
+```
+SimpleSerialToApi/
+├── Models/
+│   ├── SerialData.cs          # 시리얼 데이터 모델
+│   └── QueueItem.cs           # 큐 아이템 모델
+├── Services/
+│   ├── SerialService.cs       # 시리얼 통신
+│   ├── QueueService.cs        # 간단한 큐
+│   ├── HttpService.cs         # HTTP 전송
+│   └── TimerService.cs        # 타이머
+├── ViewModels/
+│   └── MainViewModel.cs       # 메인 뷰모델
+├── MainWindow.xaml/.cs        # 메인 윈도우
+└── App.xaml/.cs              # 앱 엔트리
+```
+
+### 7. 구현 우선순위
+1. **Phase 1**: Serial 통신 + 기본 Queue
+2. **Phase 2**: HTTP 전송 + Timer
+3. **Phase 3**: WPF UI 완성
+4. **Phase 4**: 기본 설정 관리
 
 ---
 
+**목표:** 간단하고 안정적인 Serial → Queue → HTTP 시스템  
 **작성자:** yamsengyi  
-**작성일:** 2025-08-07
+**작성일:** 2025-08-14 (단순화 버전)

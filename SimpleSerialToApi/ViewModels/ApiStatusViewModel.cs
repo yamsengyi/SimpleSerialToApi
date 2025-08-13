@@ -2,14 +2,15 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
 using SimpleSerialToApi.Interfaces;
+using SimpleSerialToApi.Services;
 
 namespace SimpleSerialToApi.ViewModels
 {
     public class ApiStatusViewModel : ViewModelBase
     {
-        private readonly ILogger<ApiStatusViewModel> _logger;
-        private readonly IMessenger _messenger;
-        private readonly IHttpApiClientService _apiService;
+    private readonly ILogger<ApiStatusViewModel> _logger;
+    private readonly IMessenger _messenger;
+    private readonly IApiClientService _apiService;
 
         private ConnectionStatus _overallStatus = ConnectionStatus.Disconnected;
         private string _statusMessage = "No API connections";
@@ -22,7 +23,7 @@ namespace SimpleSerialToApi.ViewModels
         public ApiStatusViewModel(
             ILogger<ApiStatusViewModel> logger,
             IMessenger messenger,
-            IHttpApiClientService apiService)
+            IApiClientService apiService)
         {
             _logger = logger;
             _messenger = messenger;

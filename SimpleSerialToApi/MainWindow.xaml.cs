@@ -1,32 +1,29 @@
-﻿using System.Windows;
-using Microsoft.Extensions.Logging;
+﻿using System;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
 using SimpleSerialToApi.ViewModels;
 
 namespace SimpleSerialToApi
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
-        private readonly ILogger<MainWindow> _logger;
-        private readonly MainViewModel _viewModel;
-
-        public MainWindow(ILogger<MainWindow> logger, MainViewModel viewModel)
+        public MainWindow()
         {
-            _logger = logger;
-            _viewModel = viewModel;
-            
-            InitializeComponent();
-            DataContext = _viewModel;
-            
-            _logger.LogInformation("MainWindow initialized with WPF UI - Step 07 complete");
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            _viewModel?.Dispose();
-            base.OnClosed(e);
+            try
+            {
+                InitializeComponent();
+                
+                // Simple DataContext setup
+                var app = (App)Application.Current;
+                if (app?.ServiceProvider != null)
+                {
+                    DataContext = app.ServiceProvider.GetRequiredService<MainViewModel>();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"MainWindow initialization failed: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }

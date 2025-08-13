@@ -72,6 +72,44 @@ namespace SimpleSerialToApi.Services.Queues
         }
 
         /// <summary>
+        /// Gets the total number of managed queues (compatibility method)
+        /// </summary>
+        public int GetQueueCount()
+        {
+            return _queues.Count;
+        }
+
+        /// <summary>
+        /// Gets the message count for a specific queue
+        /// </summary>
+        public int GetMessageCount(string queueName)
+        {
+            if (string.IsNullOrEmpty(queueName)) return 0;
+            if (_queues.TryGetValue(queueName, out var queueObj))
+            {
+                var prop = queueObj.GetType().GetProperty("Count");
+                if (prop != null && prop.GetValue(queueObj) is int count)
+                    return count;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Gets the capacity for a specific queue
+        /// </summary>
+        public int GetQueueCapacity(string queueName)
+        {
+            if (string.IsNullOrEmpty(queueName)) return 0;
+            if (_queues.TryGetValue(queueName, out var queueObj))
+            {
+                var prop = queueObj.GetType().GetProperty("Capacity");
+                if (prop != null && prop.GetValue(queueObj) is int capacity)
+                    return capacity;
+            }
+            return 0;
+        }
+
+        /// <summary>
         /// Creates a new queue with the specified configuration
         /// </summary>
         /// <typeparam name="T">Type of messages for the queue</typeparam>

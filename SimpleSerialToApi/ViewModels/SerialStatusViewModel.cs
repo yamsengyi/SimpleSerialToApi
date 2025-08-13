@@ -116,7 +116,7 @@ namespace SimpleSerialToApi.ViewModels
             });
         }
 
-        private void OnConnectionStatusChanged(object? sender, SimpleSerialToApi.Models.SerialConnectionStatusChangedEventArgs e)
+    private void OnConnectionStatusChanged(object? sender, SimpleSerialToApi.Models.SerialConnectionEventArgs e)
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {

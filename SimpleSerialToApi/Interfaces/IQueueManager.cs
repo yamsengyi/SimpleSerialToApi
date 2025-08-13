@@ -98,6 +98,21 @@ namespace SimpleSerialToApi.Interfaces
         int QueueCount { get; }
 
         /// <summary>
+        /// Gets the total number of managed queues (compatibility method)
+        /// </summary>
+        int GetQueueCount();
+
+        /// <summary>
+        /// Gets the message count for a specific queue
+        /// </summary>
+        int GetMessageCount(string queueName);
+
+        /// <summary>
+        /// Gets the capacity for a specific queue
+        /// </summary>
+        int GetQueueCapacity(string queueName);
+
+        /// <summary>
         /// Event raised when a queue is created
         /// </summary>
         event EventHandler<string>? QueueCreated;
