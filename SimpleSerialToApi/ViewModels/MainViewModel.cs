@@ -1,7 +1,12 @@
 using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
+using SimpleSerialToApi.Models;
 using SimpleSerialToApi.Services;
 
 namespace SimpleSerialToApi.ViewModels
@@ -13,6 +18,12 @@ namespace SimpleSerialToApi.ViewModels
         private readonly SimpleQueueService _queueService;
         private readonly SimpleHttpService _httpService;
         private readonly TimerService _timerService;
+        private readonly ComPortDiscoveryService _comPortDiscovery;
+        private readonly DataMappingService _dataMappingService;
+        private readonly SerialMonitorService _serialMonitorService;
+        private readonly ApiMonitorService _apiMonitorService;
+        private readonly ReservedWordService _reservedWordService;
+        private readonly SerialDataSimulator _serialDataSimulator;
 
         private string _serialPort = "COM1";
         private string _apiUrl = "http://localhost:8080/api/data";
@@ -20,33 +31,111 @@ namespace SimpleSerialToApi.ViewModels
         private bool _isTimerRunning = false;
         private int _queueCount = 0;
         private string _status = "Disconnected";
+        private ObservableCollection<ComPortInfo> _availablePorts = new();
+        
+        // Queue 관리 관련 필드
+        private string _transmissionInterval = "5";
+        private string _batchSize = "10";
+        
+        // Device ID 필드
+        private string _deviceId = string.Empty;
+        
+        // Monitor 관련 필드
+        private bool _serialMonitorVisible = false;
+        private bool _apiMonitorVisible = false;
+        
+        // 시뮬레이션 관련 필드
+        private bool _isSimulating = false;
+        private string _simulationInterval = "3";
 
         public MainViewModel(
             ILogger<MainViewModel> logger,
             SerialCommunicationService serialService,
             SimpleQueueService queueService,
             SimpleHttpService httpService,
-            TimerService timerService)
+            TimerService timerService,
+            ComPortDiscoveryService comPortDiscovery,
+            DataMappingService dataMappingService,
+            SerialMonitorService serialMonitorService,
+            ApiMonitorService apiMonitorService,
+            ReservedWordService reservedWordService,
+            SerialDataSimulator serialDataSimulator)
         {
             _logger = logger;
             _serialService = serialService;
             _queueService = queueService;
             _httpService = httpService;
             _timerService = timerService;
+            _comPortDiscovery = comPortDiscovery;
+            _dataMappingService = dataMappingService;
+            _serialMonitorService = serialMonitorService;
+            _apiMonitorService = apiMonitorService;
+            _reservedWordService = reservedWordService;
+
+            // 시뮬레이터 초기화
+            _serialDataSimulator = serialDataSimulator;
+            _serialDataSimulator.DataGenerated += OnSimulatedDataReceived;
 
             // Commands
             ConnectCommand = new RelayCommand(Connect, CanConnect);
             DisconnectCommand = new RelayCommand(Disconnect, CanDisconnect);
-            StartTimerCommand = new RelayCommand(StartTimer, CanStartTimer);
-            StopTimerCommand = new RelayCommand(StopTimer, CanStopTimer);
             TestApiCommand = new RelayCommand(TestApi);
+            RefreshPortsCommand = new RelayCommand(RefreshPorts);
+            SetTransmissionIntervalCommand = new RelayCommand(SetTransmissionInterval);
+            SetBatchSizeCommand = new RelayCommand(SetBatchSize);
+            SetDeviceIdCommand = new RelayCommand(SetDeviceId);
+            AddMappingScenarioCommand = new RelayCommand(AddMappingScenario);
+            DeleteMappingScenarioCommand = new RelayCommand(DeleteMappingScenario);
+            TestMappingCommand = new RelayCommand(TestMapping);
+            ToggleSerialMonitorCommand = new RelayCommand(ToggleSerialMonitor);
+            ToggleApiMonitorCommand = new RelayCommand(ToggleApiMonitor);
+            SaveSerialMonitorCommand = new RelayCommand(SaveSerialMonitor);
+            SaveApiMonitorCommand = new RelayCommand(SaveApiMonitor);
+            ShowSerialMonitorCommand = new RelayCommand(ShowSerialMonitor);
+            HideSerialMonitorCommand = new RelayCommand(HideSerialMonitor);
+            ShowApiMonitorCommand = new RelayCommand(ShowApiMonitor);
+            HideApiMonitorCommand = new RelayCommand(HideApiMonitor);
+            ClearSerialMonitorCommand = new RelayCommand(ClearSerialMonitor);
+            ClearApiMonitorCommand = new RelayCommand(ClearApiMonitor);
+            
+            // 새로운 팝업 창 명령들
+            OpenDataMappingCommand = new RelayCommand(OpenDataMapping);
+            OpenSerialMonitorCommand = new RelayCommand(OpenSerialMonitor);
+            OpenApiMonitorCommand = new RelayCommand(OpenApiMonitor);
+            
+            // 시뮬레이션 명령들
+            StartSimulationCommand = new RelayCommand(ToggleSimulation);
+            StopSimulationCommand = new RelayCommand(StopSimulation);
+            GenerateSingleDataCommand = new RelayCommand(GenerateSingleData);
 
             // 이벤트 구독
             _serialService.DataReceived += OnSerialDataReceived;
             _serialService.ConnectionStatusChanged += OnConnectionStatusChanged;
+            _timerService.QueueProcessed += OnQueueProcessed;
+            _dataMappingService.MappingProcessed += OnMappingProcessed;
+            
+            // 모니터 서비스 이벤트 구독
+            _serialMonitorService.MessageAdded += OnSerialMonitorMessageAdded;
+            _apiMonitorService.MessageAdded += OnApiMonitorMessageAdded;
 
             // API URL 설정
             _httpService.SetApiUrl(_apiUrl);
+
+            // App.config에서 설정 읽기
+            LoadQueueSettings();
+            
+            // 매핑 시나리오 초기화
+            InitializeMappingScenarios();
+
+            // 초기 포트 목록 로드 및 스마트 선택
+            RefreshPorts();
+            InitializeSmartPortSelection();
+            
+            // 초기 Queue 상태 업데이트
+            UpdateQueueCount();
+            
+            // 자동 연결 확인
+            _ = Task.Run(CheckAutoConnect);
         }
 
         // Properties
@@ -86,12 +175,202 @@ namespace SimpleSerialToApi.ViewModels
             set { _status = value; OnPropertyChanged(); }
         }
 
+        public ObservableCollection<ComPortInfo> AvailablePorts
+        {
+            get => _availablePorts;
+            set { _availablePorts = value; OnPropertyChanged(); }
+        }
+        
+        // Queue 관리 속성
+        public string TransmissionInterval
+        {
+            get => _transmissionInterval;
+            set { _transmissionInterval = value; OnPropertyChanged(); }
+        }
+        
+        public string BatchSize
+        {
+            get => _batchSize;
+            set { _batchSize = value; OnPropertyChanged(); }
+        }
+        
+        // Device ID 속성
+        public string DeviceId
+        {
+            get => _deviceId;
+            set { _deviceId = value; OnPropertyChanged(); }
+        }
+        
+        // Monitor 속성
+        public bool SerialMonitorVisible
+        {
+            get => _serialMonitorVisible;
+            set { _serialMonitorVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(SerialMonitorButtonText)); }
+        }
+        
+        // 추가 모니터 관련 속성들 (중복 제거)
+        private string _serialMonitorText = string.Empty;
+        public string SerialMonitorText
+        {
+            get => _serialMonitorText;
+            set { _serialMonitorText = value; OnPropertyChanged(); }
+        }
+        
+        private string _apiMonitorText = string.Empty;
+        public string ApiMonitorText
+        {
+            get => _apiMonitorText;
+            set { _apiMonitorText = value; OnPropertyChanged(); }
+        }
+        
+        private bool _serialMonitorAutoScroll = true;
+        public bool SerialMonitorAutoScroll
+        {
+            get => _serialMonitorAutoScroll;
+            set { _serialMonitorAutoScroll = value; OnPropertyChanged(); }
+        }
+        
+        private bool _apiMonitorAutoScroll = true;
+        public bool ApiMonitorAutoScroll
+        {
+            get => _apiMonitorAutoScroll;
+            set { _apiMonitorAutoScroll = value; OnPropertyChanged(); }
+        }
+        
+        private string _serialMonitorStatus = "Ready";
+        public string SerialMonitorStatus
+        {
+            get => _serialMonitorStatus;
+            set { _serialMonitorStatus = value; OnPropertyChanged(); }
+        }
+        
+        private string _apiMonitorStatus = "Ready";
+        public string ApiMonitorStatus
+        {
+            get => _apiMonitorStatus;
+            set { _apiMonitorStatus = value; OnPropertyChanged(); }
+        }
+        
+        public string SerialMonitorButtonText => SerialMonitorVisible ? "Hide Serial Monitor" : "Show Serial Monitor";
+        public string ApiMonitorButtonText => ApiMonitorVisible ? "Hide API Monitor" : "Show API Monitor";
+        
+        private string _apiMonitorFilter = "All";
+        public string ApiMonitorFilter
+        {
+            get => _apiMonitorFilter;
+            set { _apiMonitorFilter = value; OnPropertyChanged(); }
+        }
+        
+        public List<string> ApiMonitorFilters { get; } = new() { "All", "2xx", "4xx", "5xx", "GET", "POST", "PUT", "DELETE" };
+        
+        public bool ApiMonitorVisible
+        {
+            get => _apiMonitorVisible;
+            set { _apiMonitorVisible = value; OnPropertyChanged(); OnPropertyChanged(nameof(ApiMonitorButtonText)); }
+        }
+        
+        // 시뮬레이션 관련 프로퍼티
+        public bool IsSimulating
+        {
+            get => _isSimulating;
+            set { _isSimulating = value; OnPropertyChanged(); OnPropertyChanged(nameof(SimulationButtonText)); }
+        }
+        
+        public string SimulationInterval
+        {
+            get => _simulationInterval;
+            set { _simulationInterval = value; OnPropertyChanged(); }
+        }
+        
+        public string SimulationButtonText => IsSimulating ? "Stop Simulation" : "Start Simulation";
+        
+        // Data Mapping 시나리오 컬렉션
+        public ObservableCollection<DataMappingScenario> MappingScenarios { get; } = new();
+        
+        // DataGrid 지원 속성들
+        public List<DataSource> DataSources { get; } = new() { DataSource.Serial, DataSource.ApiResponse };
+        public List<TransmissionType> TransmissionTypes { get; } = new() { TransmissionType.Serial, TransmissionType.Api };
+        public List<string> ApiMethods { get; } = new() { "GET", "POST", "PUT", "DELETE" };
+        
+        private DataMappingScenario? _selectedMappingScenario;
+        public DataMappingScenario? SelectedMappingScenario
+        {
+            get => _selectedMappingScenario;
+            set { _selectedMappingScenario = value; OnPropertyChanged(); }
+        }
+        
+        // 팝업 창 관련 속성들
+        public string MappingScenariosCount => $"{MappingScenarios.Count(s => s.IsEnabled)}";
+        public string SerialConnectionStatus => IsConnected ? $"{SerialPort}" : "Disconnected";
+        public string ApiEndpointStatus => ApiUrl;
+        
+        // Monitor 관련 추가 속성들
+        private int _serialMessageCount = 0;
+        public string SerialMessageCount => _serialMessageCount.ToString();
+        
+        private int _apiRequestCount = 0;
+        public string ApiRequestCount => _apiRequestCount.ToString();
+        
+        private int _apiSuccessCount = 0;
+        public string ApiSuccessRate => _apiRequestCount > 0 ? $"{(_apiSuccessCount * 100 / _apiRequestCount)}%" : "0%";
+        
+        // Monitor Filters
+        public List<string> SerialMonitorFilters { get; } = new() { "All", "Data", "Errors", "Commands" };
+        
+        private string _serialMonitorFilter = "All";
+        public string SerialMonitorFilter
+        {
+            get => _serialMonitorFilter;
+            set { _serialMonitorFilter = value; OnPropertyChanged(); }
+        }
+        
+        private bool _serialShowTimestamps = true;
+        public bool SerialShowTimestamps
+        {
+            get => _serialShowTimestamps;
+            set { _serialShowTimestamps = value; OnPropertyChanged(); }
+        }
+        
+        private bool _apiShowHeaders = false;
+        public bool ApiShowHeaders
+        {
+            get => _apiShowHeaders;
+            set { _apiShowHeaders = value; OnPropertyChanged(); }
+        }
+
         // Commands
         public ICommand ConnectCommand { get; }
         public ICommand DisconnectCommand { get; }
-        public ICommand StartTimerCommand { get; }
-        public ICommand StopTimerCommand { get; }
         public ICommand TestApiCommand { get; }
+        public ICommand RefreshPortsCommand { get; }
+        public ICommand SetTransmissionIntervalCommand { get; }
+        public ICommand SetBatchSizeCommand { get; }
+        public ICommand SetDeviceIdCommand { get; }
+        public ICommand AddMappingScenarioCommand { get; }
+        public ICommand DeleteMappingScenarioCommand { get; }
+        public ICommand TestMappingCommand { get; }
+        
+        // 터미널 모니터 Commands (중복 제거)
+        public ICommand ToggleSerialMonitorCommand { get; }
+        public ICommand ToggleApiMonitorCommand { get; }
+        public ICommand SaveSerialMonitorCommand { get; }
+        public ICommand SaveApiMonitorCommand { get; }
+        public ICommand ShowSerialMonitorCommand { get; }
+        public ICommand HideSerialMonitorCommand { get; }
+        public ICommand ShowApiMonitorCommand { get; }
+        public ICommand HideApiMonitorCommand { get; }
+        public ICommand ClearSerialMonitorCommand { get; }
+        public ICommand ClearApiMonitorCommand { get; }
+        
+        // 팝업 창 관련 명령들
+        public ICommand OpenDataMappingCommand { get; }
+        public ICommand OpenSerialMonitorCommand { get; }
+        public ICommand OpenApiMonitorCommand { get; }
+        
+        // 시뮬레이션 관련 명령들
+        public ICommand StartSimulationCommand { get; }
+        public ICommand StopSimulationCommand { get; }
+        public ICommand GenerateSingleDataCommand { get; }
 
         // Command Methods
         private async void Connect()
@@ -102,6 +381,15 @@ namespace SimpleSerialToApi.ViewModels
                 var success = await _serialService.ConnectAsync();
                 IsConnected = success;
                 Status = success ? "Connected" : "Connection Failed";
+                
+                // Queue 상태 업데이트
+                UpdateQueueCount();
+                
+                // 연결 성공 시 자동으로 타이머 시작
+                if (success)
+                {
+                    StartTimerAutomatically();
+                }
             }
             catch (Exception ex)
             {
@@ -114,9 +402,15 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
+                // 연결 해제 시 자동으로 타이머 중지
+                StopTimerAutomatically();
+                
                 await _serialService.DisconnectAsync();
                 IsConnected = false;
                 Status = "Disconnected";
+                
+                // Queue 상태 업데이트
+                UpdateQueueCount();
             }
             catch (Exception ex)
             {
@@ -124,18 +418,27 @@ namespace SimpleSerialToApi.ViewModels
             }
         }
 
-        private void StartTimer()
+        private void StartTimerAutomatically()
         {
-            _timerService.Start(5); // 5초 간격
+            // 설정된 전송 간격 사용
+            if (int.TryParse(TransmissionInterval, out int interval) && interval > 0)
+            {
+                _timerService.Start(interval);
+            }
+            else
+            {
+                _timerService.Start(5); // 기본값 5초
+            }
             IsTimerRunning = true;
-            Status = "Timer Started";
+            _logger.LogInformation("Timer started automatically on connection with {Interval}s interval", 
+                int.TryParse(TransmissionInterval, out int logInterval) ? logInterval : 5);
         }
 
-        private void StopTimer()
+        private void StopTimerAutomatically()
         {
             _timerService.Stop();
             IsTimerRunning = false;
-            Status = "Timer Stopped";
+            _logger.LogInformation("Timer stopped automatically on disconnection");
         }
 
         private async void TestApi()
@@ -143,28 +446,49 @@ namespace SimpleSerialToApi.ViewModels
             try
             {
                 Status = "Testing API...";
+                
+                // API 테스트 요청 로그
+                var requestId = _apiMonitorService.LogApiRequest("GET", _apiUrl, "API Connection Test");
+                
                 var success = await _httpService.TestConnectionAsync();
+                
+                // API 테스트 응답 로그
+                var statusCode = success ? System.Net.HttpStatusCode.OK : System.Net.HttpStatusCode.InternalServerError;
+                _apiMonitorService.LogApiResponse(requestId, statusCode, success ? "Connection OK" : "Connection Failed");
+                
                 Status = success ? "API Connection OK" : "API Connection Failed";
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error testing API connection");
                 Status = "API Test Error";
+                
+                // API 오류 로그
+                _apiMonitorService.LogApiError("test", ex);
             }
         }
 
         // Command Can Execute
         private bool CanConnect() => !IsConnected;
         private bool CanDisconnect() => IsConnected;
-        private bool CanStartTimer() => !IsTimerRunning;
-        private bool CanStopTimer() => IsTimerRunning;
 
         // Event Handlers
-        private void OnSerialDataReceived(object? sender, Models.SerialDataReceivedEventArgs e)
+        private async void OnSerialDataReceived(object? sender, Models.SerialDataReceivedEventArgs e)
         {
+            var dataString = System.Text.Encoding.UTF8.GetString(e.Data);
+            
+            // 시리얼 모니터에 수신 데이터 기록
+            _serialMonitorService.LogSerialReceived(dataString);
+            
+            // 데이터 매핑 처리
+            await Task.Run(async () =>
+            {
+                await _dataMappingService.ProcessDataAsync(dataString, DataSource.Serial);
+            });
+            
             // STX/ETX 기반 파싱하여 큐에 추가
             _queueService.ParseAndEnqueue(e.Data);
-            QueueCount = _queueService.Count;
+            UpdateQueueCount();
             Status = $"Data received. Queue: {QueueCount}";
         }
 
@@ -172,6 +496,864 @@ namespace SimpleSerialToApi.ViewModels
         {
             IsConnected = e.IsConnected;
             Status = e.Message;
+        }
+
+        private void OnQueueProcessed(object? sender, EventArgs e)
+        {
+            // UI 스레드에서 QueueCount 업데이트
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(UpdateQueueCount);
+        }
+        
+        private async void OnMappingProcessed(object? sender, MappingProcessedEventArgs e)
+        {
+            // 매핑 결과를 시리얼 모니터에 기록
+            _serialMonitorService.LogMappingResult(e.OriginalData, e.Result.ProcessedData, e.Scenario.Name);
+            
+            // API 전송 처리
+            if (e.Result.Success && e.Result.TransmissionType == TransmissionType.Api)
+            {
+                await ProcessApiTransmission(e.Result, e.Scenario);
+            }
+            
+            // UI 스레드에서 상태 업데이트
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                Status = $"Mapped: {e.Scenario.Name}";
+            });
+        }
+
+        /// <summary>
+        /// API 전송 처리
+        /// </summary>
+        private async Task ProcessApiTransmission(Services.MappingResult result, DataMappingScenario scenario)
+        {
+            try
+            {
+                // API 모니터에 요청 시작 로그
+                var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod, result.ApiEndpoint, result.ProcessedData);
+
+                // API 호출 - 시나리오별 설정 적용
+                var apiUrl = string.IsNullOrEmpty(scenario.ApiEndpoint) ? _apiUrl : scenario.ApiEndpoint;
+                
+                // HTTP 서비스에 임시 URL 설정
+                var originalUrl = _apiUrl;
+                _httpService.SetApiUrl(apiUrl);
+                
+                // API 호출 수행 (JSON 형태로 전송)
+                var startTime = DateTime.Now;
+                bool success = await _httpService.SendJsonAsync(result.ProcessedData);
+                var responseTime = (long)(DateTime.Now - startTime).TotalMilliseconds;
+                
+                // 원래 URL 복원
+                _httpService.SetApiUrl(originalUrl);
+                
+                // API 모니터에 결과 로그
+                if (success)
+                {
+                    _apiMonitorService.LogApiResponse(requestId, System.Net.HttpStatusCode.OK, 
+                        "Data transmitted successfully", null, responseTime);
+                }
+                else
+                {
+                    _apiMonitorService.LogApiResponse(requestId, System.Net.HttpStatusCode.BadRequest, 
+                        "API transmission failed", null, responseTime);
+                }
+                
+                _logger.LogInformation("API transmission completed for scenario '{ScenarioName}': {Success}", 
+                    scenario.Name, success ? "Success" : "Failed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during API transmission for scenario '{ScenarioName}'", scenario.Name);
+                _apiMonitorService.LogApiError(_apiMonitorService.LogApiRequest(result.ApiMethod, result.ApiEndpoint), ex);
+            }
+        }
+
+        /// <summary>
+        /// 시리얼 모니터 메시지 추가 이벤트 핸들러
+        /// </summary>
+        private void OnSerialMonitorMessageAdded(object? sender, MonitorMessage message)
+        {
+            // UI 스레드에서 텍스트 업데이트
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+            {
+                SerialMonitorText += message.FormattedMessage + Environment.NewLine;
+                
+                // 메시지 카운트 업데이트
+                _serialMessageCount++;
+                OnPropertyChanged(nameof(SerialMessageCount));
+            });
+        }
+
+        /// <summary>
+        /// API 모니터 메시지 추가 이벤트 핸들러
+        /// </summary>
+        private void OnApiMonitorMessageAdded(object? sender, ApiMonitorMessage message)
+        {
+            // UI 스레드에서 텍스트 업데이트
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+            {
+                ApiMonitorText += message.FormattedMessage + Environment.NewLine;
+                
+                // API 카운트 업데이트
+                if (message.IsCompleted)
+                {
+                    _apiRequestCount++;
+                    if (message.StatusCode.HasValue && 
+                        (int)message.StatusCode.Value >= 200 && (int)message.StatusCode.Value < 300)
+                    {
+                        _apiSuccessCount++;
+                    }
+                    
+                    OnPropertyChanged(nameof(ApiRequestCount));
+                    OnPropertyChanged(nameof(ApiSuccessRate));
+                }
+            });
+        }
+
+        // COM Port Management Methods
+        private void RefreshPorts()
+        {
+            try
+            {
+                var portsWithDescriptions = _comPortDiscovery.GetAvailablePortsWithDescriptions();
+                var currentSelectedPort = SerialPort;
+                
+                AvailablePorts.Clear();
+
+                foreach (var port in portsWithDescriptions)
+                {
+                    var portInfo = new ComPortInfo
+                    {
+                        PortName = port.Key,
+                        Description = port.Value
+                    };
+                    AvailablePorts.Add(portInfo);
+                }
+
+                _logger.LogInformation("Refreshed {Count} COM ports", AvailablePorts.Count);
+                
+                // 새로고침 후 스마트 선택 수행 (기존 선택이 없거나 더 이상 사용할 수 없는 경우)
+                if (string.IsNullOrEmpty(currentSelectedPort) || 
+                    !AvailablePorts.Any(p => p.PortName == currentSelectedPort))
+                {
+                    PerformSmartSelection();
+                }
+                else
+                {
+                    // 기존 선택된 포트가 여전히 사용 가능하면 유지
+                    SerialPort = currentSelectedPort;
+                    Status = $"Port refreshed. Current: {currentSelectedPort}";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error refreshing COM ports");
+                Status = "Error refreshing COM ports";
+            }
+        }
+
+        private void InitializeSmartPortSelection()
+        {
+            PerformSmartSelection();
+        }
+
+        private void PerformSmartSelection()
+        {
+            try
+            {
+                var smartPort = _comPortDiscovery.GetBestAvailableComPort();
+                if (!string.IsNullOrEmpty(smartPort))
+                {
+                    SerialPort = smartPort;
+                    
+                    // 모든 포트의 선택 상태 초기화
+                    foreach (var port in AvailablePorts)
+                    {
+                        port.IsSmartSelected = false;
+                        port.IsLastUsed = false;
+                    }
+                    
+                    // 스마트 선택된 포트 표시
+                    var selectedPortInfo = AvailablePorts.FirstOrDefault(p => p.PortName == smartPort);
+                    if (selectedPortInfo != null)
+                    {
+                        selectedPortInfo.IsSmartSelected = true;
+                        
+                        // 마지막 사용 포트인지 확인
+                        var lastUsedPort = System.Configuration.ConfigurationManager.AppSettings["LastUsedComPort"];
+                        if (smartPort == lastUsedPort)
+                        {
+                            selectedPortInfo.IsLastUsed = true;
+                            Status = $"Last used port selected: {smartPort}";
+                        }
+                        else
+                        {
+                            Status = $"Smart selected: {smartPort}";
+                        }
+                    }
+                    
+                    _logger.LogInformation("Smart selected COM port: {Port}", smartPort);
+                }
+                else
+                {
+                    Status = "No COM ports available";
+                    _logger.LogWarning("No COM ports available for smart selection");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in smart port selection");
+                Status = "Error in smart port selection";
+            }
+        }
+
+        /// <summary>
+        /// Checks and performs auto-connect if enabled
+        /// </summary>
+        private async Task CheckAutoConnect()
+        {
+            try
+            {
+                // 초기화 완료를 위해 잠시 대기
+                await Task.Delay(2000);
+                
+                var (enabled, portName) = _comPortDiscovery.GetAutoConnectSettings();
+                
+                if (enabled && !string.IsNullOrEmpty(portName))
+                {
+                    // UI 스레드에서 실행
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+                    {
+                        if (!IsConnected && AvailablePorts.Any(p => p.PortName == portName))
+                        {
+                            SerialPort = portName;
+                            Status = $"Auto-connecting to {portName}...";
+                            _logger.LogInformation("Auto-connecting to port: {Port}", portName);
+                            
+                            // 잠시 대기 후 연결 시도
+                            await Task.Delay(1000);
+                            Connect();
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in auto-connect");
+            }
+        }
+
+        /// <summary>
+        /// Sets the transmission interval setting
+        /// </summary>
+        private void SetTransmissionInterval()
+        {
+            try
+            {
+                if (int.TryParse(TransmissionInterval, out int interval) && interval > 0)
+                {
+                    // App.config에 설정 저장
+                    var config = System.Configuration.ConfigurationManager.OpenExeConfiguration(
+                        System.Configuration.ConfigurationUserLevel.None);
+                    
+                    config.AppSettings.Settings["QueueTransmissionInterval"].Value = TransmissionInterval;
+                    config.Save(System.Configuration.ConfigurationSaveMode.Modified);
+                    System.Configuration.ConfigurationManager.RefreshSection("appSettings");
+                    
+                    Status = $"Transmission interval set to {interval} seconds";
+                    _logger.LogInformation("Transmission interval updated to {Interval} seconds", interval);
+                }
+                else
+                {
+                    Status = "Invalid transmission interval. Must be a positive number.";
+                    _logger.LogWarning("Invalid transmission interval entered: {Input}", TransmissionInterval);
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error setting transmission interval";
+                _logger.LogError(ex, "Error setting transmission interval");
+            }
+        }
+        
+        /// <summary>
+        /// Sets the batch size setting
+        /// </summary>
+        private void SetBatchSize()
+        {
+            try
+            {
+                if (int.TryParse(BatchSize, out int batchSize) && batchSize > 0)
+                {
+                    // App.config에 설정 저장
+                    var config = System.Configuration.ConfigurationManager.OpenExeConfiguration(
+                        System.Configuration.ConfigurationUserLevel.None);
+                    
+                    config.AppSettings.Settings["QueueBatchSize"].Value = BatchSize;
+                    config.Save(System.Configuration.ConfigurationSaveMode.Modified);
+                    System.Configuration.ConfigurationManager.RefreshSection("appSettings");
+                    
+                    Status = $"Batch size set to {batchSize}";
+                    _logger.LogInformation("Batch size updated to {BatchSize}", batchSize);
+                }
+                else
+                {
+                    Status = "Invalid batch size. Must be a positive number.";
+                    _logger.LogWarning("Invalid batch size entered: {Input}", BatchSize);
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error setting batch size";
+                _logger.LogError(ex, "Error setting batch size");
+            }
+        }
+
+        /// <summary>
+        /// Loads queue settings from App.config
+        /// </summary>
+        private void LoadQueueSettings()
+        {
+            try
+            {
+                var transmissionInterval = System.Configuration.ConfigurationManager.AppSettings["QueueTransmissionInterval"] ?? "5";
+                var batchSize = System.Configuration.ConfigurationManager.AppSettings["QueueBatchSize"] ?? "10";
+                var deviceId = System.Configuration.ConfigurationManager.AppSettings["DeviceId"] ?? "";
+                
+                TransmissionInterval = transmissionInterval;
+                BatchSize = batchSize;
+                DeviceId = deviceId;
+                
+                _logger.LogInformation("Settings loaded: Interval={Interval}s, BatchSize={BatchSize}, DeviceId={DeviceId}", 
+                    transmissionInterval, batchSize, deviceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading settings from App.config");
+                // 기본값 사용
+                TransmissionInterval = "5";
+                BatchSize = "10";
+                DeviceId = "";
+            }
+        }
+
+        /// <summary>
+        /// Initializes mapping scenarios from the data mapping service
+        /// </summary>
+        private void InitializeMappingScenarios()
+        {
+            try
+            {
+                // 데이터 매핑 서비스의 시나리오들을 UI 컬렉션에 동기화
+                MappingScenarios.Clear();
+                
+                foreach (var scenario in _dataMappingService.Scenarios)
+                {
+                    MappingScenarios.Add(scenario);
+                }
+                
+                _logger.LogInformation("Initialized {Count} mapping scenarios", MappingScenarios.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing mapping scenarios");
+            }
+        }
+
+        /// <summary>
+        /// Updates the current queue count from the queue service
+        /// </summary>
+        private void UpdateQueueCount()
+        {
+            try
+            {
+                QueueCount = _queueService.Count;
+                _logger.LogDebug("Queue count updated: {Count}", QueueCount);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating queue count");
+                QueueCount = 0; // 오류 시 0으로 설정
+            }
+        }
+
+        /// <summary>
+        /// Sets the device ID setting
+        /// </summary>
+        private void SetDeviceId()
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(DeviceId))
+                {
+                    // App.config에 설정 저장
+                    var config = System.Configuration.ConfigurationManager.OpenExeConfiguration(
+                        System.Configuration.ConfigurationUserLevel.None);
+                    
+                    config.AppSettings.Settings["DeviceId"].Value = DeviceId;
+                    config.Save(System.Configuration.ConfigurationSaveMode.Modified);
+                    System.Configuration.ConfigurationManager.RefreshSection("appSettings");
+                    
+                    Status = $"Device ID set to '{DeviceId}'";
+                    _logger.LogInformation("Device ID updated to {DeviceId}", DeviceId);
+                }
+                else
+                {
+                    Status = "Device ID cannot be empty";
+                    _logger.LogWarning("Attempted to set empty Device ID");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error setting Device ID";
+                _logger.LogError(ex, "Error setting Device ID");
+            }
+        }
+
+        /// <summary>
+        /// Adds a new mapping scenario
+        /// </summary>
+        private void AddMappingScenario()
+        {
+            try
+            {
+                if (MappingScenarios.Count >= 10)
+                {
+                    Status = "Maximum 10 scenarios allowed";
+                    return;
+                }
+
+                var newScenario = new DataMappingScenario
+                {
+                    IsEnabled = true,
+                    Name = $"Scenario {MappingScenarios.Count + 1}",
+                    Source = DataSource.Serial,
+                    Identifier = "",
+                    ValueTemplate = "@deviceId|@yyyyMMddHHmmss|{data}",
+                    TransmissionType = TransmissionType.Api,
+                    ApiMethod = "POST",
+                    ApiEndpoint = "/data"
+                };
+
+                MappingScenarios.Add(newScenario);
+                SelectedMappingScenario = newScenario;
+                
+                Status = $"Added new scenario: {newScenario.Name}";
+                _logger.LogInformation("Added new mapping scenario: {Name}", newScenario.Name);
+            }
+            catch (Exception ex)
+            {
+                Status = "Error adding scenario";
+                _logger.LogError(ex, "Error adding mapping scenario");
+            }
+        }
+
+        /// <summary>
+        /// Deletes the selected mapping scenario
+        /// </summary>
+        private void DeleteMappingScenario()
+        {
+            try
+            {
+                if (SelectedMappingScenario != null)
+                {
+                    var scenarioName = SelectedMappingScenario.Name;
+                    MappingScenarios.Remove(SelectedMappingScenario);
+                    SelectedMappingScenario = null;
+                    
+                    Status = $"Deleted scenario: {scenarioName}";
+                    _logger.LogInformation("Deleted mapping scenario: {Name}", scenarioName);
+                }
+                else
+                {
+                    Status = "No scenario selected for deletion";
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error deleting scenario";
+                _logger.LogError(ex, "Error deleting mapping scenario");
+            }
+        }
+
+        /// <summary>
+        /// Tests the mapping scenarios
+        /// </summary>
+        private async void TestMapping()
+        {
+            try
+            {
+                var enabledScenarios = MappingScenarios.Where(s => s.IsEnabled).ToList();
+                Status = $"Found {enabledScenarios.Count} enabled scenarios ready for testing";
+                
+                // 테스트 데이터로 매핑 테스트
+                var testData = "STX TEST DATA ETX";
+                var results = await _dataMappingService.ProcessDataAsync(testData, DataSource.Serial);
+                
+                if (results.Any())
+                {
+                    Status = $"Test successful: {results.Count} matches found";
+                }
+                else
+                {
+                    Status = "Test completed: No matches found";
+                }
+                
+                _logger.LogInformation("Mapping test completed with {Count} results", results.Count);
+            }
+            catch (Exception ex)
+            {
+                Status = "Error testing mapping";
+                _logger.LogError(ex, "Error testing mapping scenarios");
+            }
+        }
+
+        /// <summary>
+        /// Shows the serial monitor
+        /// </summary>
+        private void ShowSerialMonitor()
+        {
+            SerialMonitorVisible = true;
+            _logger.LogInformation("Serial monitor shown");
+        }
+
+        /// <summary>
+        /// Hides the serial monitor
+        /// </summary>
+        private void HideSerialMonitor()
+        {
+            SerialMonitorVisible = false;
+            _logger.LogInformation("Serial monitor hidden");
+        }
+
+        /// <summary>
+        /// Shows the API monitor
+        /// </summary>
+        private void ShowApiMonitor()
+        {
+            ApiMonitorVisible = true;
+            _logger.LogInformation("API monitor shown");
+        }
+
+        /// <summary>
+        /// Hides the API monitor
+        /// </summary>
+        private void HideApiMonitor()
+        {
+            ApiMonitorVisible = false;
+            _logger.LogInformation("API monitor hidden");
+        }
+
+        /// <summary>
+        /// Clears the serial monitor
+        /// </summary>
+        private void ClearSerialMonitor()
+        {
+            _serialMonitorService.Clear();
+            SerialMonitorText = string.Empty;
+            _serialMessageCount = 0;
+            OnPropertyChanged(nameof(SerialMessageCount));
+            Status = "Serial monitor cleared";
+            _logger.LogInformation("Serial monitor cleared");
+        }
+
+        /// <summary>
+        /// Clears the API monitor
+        /// </summary>
+        private void ClearApiMonitor()
+        {
+            _apiMonitorService.Clear();
+            ApiMonitorText = string.Empty;
+            _apiRequestCount = 0;
+            _apiSuccessCount = 0;
+            OnPropertyChanged(nameof(ApiRequestCount));
+            OnPropertyChanged(nameof(ApiSuccessRate));
+            Status = "API monitor cleared";
+            _logger.LogInformation("API monitor cleared");
+        }
+
+        /// <summary>
+        /// Toggles the serial monitor visibility
+        /// </summary>
+        private void ToggleSerialMonitor()
+        {
+            SerialMonitorVisible = !SerialMonitorVisible;
+            var action = SerialMonitorVisible ? "shown" : "hidden";
+            Status = $"Serial monitor {action}";
+            _logger.LogInformation("Serial monitor {Action}", action);
+        }
+
+        /// <summary>
+        /// Toggles the API monitor visibility
+        /// </summary>
+        private void ToggleApiMonitor()
+        {
+            ApiMonitorVisible = !ApiMonitorVisible;
+            var action = ApiMonitorVisible ? "shown" : "hidden";
+            Status = $"API monitor {action}";
+            _logger.LogInformation("API monitor {Action}", action);
+        }
+
+        /// <summary>
+        /// Saves serial monitor content to file
+        /// </summary>
+        private void SaveSerialMonitor()
+        {
+            try
+            {
+                var fileName = $"SerialMonitor_{DateTime.Now:yyyyMMdd_HHmmss}.log";
+                var filePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
+                System.IO.File.WriteAllText(filePath, SerialMonitorText);
+                Status = $"Serial monitor saved to {fileName}";
+                _logger.LogInformation("Serial monitor saved to {FilePath}", filePath);
+            }
+            catch (Exception ex)
+            {
+                Status = "Error saving serial monitor";
+                _logger.LogError(ex, "Error saving serial monitor");
+            }
+        }
+
+        /// <summary>
+        /// Saves API monitor content to file
+        /// </summary>
+        private void SaveApiMonitor()
+        {
+            try
+            {
+                var fileName = $"ApiMonitor_{DateTime.Now:yyyyMMdd_HHmmss}.log";
+                var filePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
+                System.IO.File.WriteAllText(filePath, ApiMonitorText);
+                Status = $"API monitor saved to {fileName}";
+                _logger.LogInformation("API monitor saved to {FilePath}", filePath);
+            }
+            catch (Exception ex)
+            {
+                Status = "Error saving API monitor";
+                _logger.LogError(ex, "Error saving API monitor");
+            }
+        }
+
+        /// <summary>
+        /// Opens the Data Mapping configuration window
+        /// </summary>
+        private void OpenDataMapping()
+        {
+            try
+            {
+                var window = new Views.DataMappingWindow(this);
+                window.ShowDialog();
+                OnPropertyChanged(nameof(MappingScenariosCount));
+                Status = "Data mapping window opened";
+                _logger.LogInformation("Data mapping window opened");
+            }
+            catch (Exception ex)
+            {
+                Status = "Error opening data mapping window";
+                _logger.LogError(ex, "Error opening data mapping window");
+            }
+        }
+
+        /// <summary>
+        /// Opens the Serial Monitor window
+        /// </summary>
+        private void OpenSerialMonitor()
+        {
+            try
+            {
+                // 기존 메시지들을 텍스트로 로드
+                LoadExistingSerialMessages();
+                
+                var window = new Views.SerialMonitorWindow(this);
+                window.Show();
+                Status = "Serial monitor window opened";
+                _logger.LogInformation("Serial monitor window opened");
+            }
+            catch (Exception ex)
+            {
+                Status = "Error opening serial monitor window";
+                _logger.LogError(ex, "Error opening serial monitor window");
+            }
+        }
+
+        /// <summary>
+        /// Opens the API Monitor window
+        /// </summary>
+        private void OpenApiMonitor()
+        {
+            try
+            {
+                // 기존 메시지들을 텍스트로 로드
+                LoadExistingApiMessages();
+                
+                var window = new Views.ApiMonitorWindow(this);
+                window.Show();
+                Status = "API monitor window opened";
+                _logger.LogInformation("API monitor window opened");
+            }
+            catch (Exception ex)
+            {
+                Status = "Error opening API monitor window";
+                _logger.LogError(ex, "Error opening API monitor window");
+            }
+        }
+
+        /// <summary>
+        /// 기존 시리얼 메시지들을 텍스트에 로드
+        /// </summary>
+        private void LoadExistingSerialMessages()
+        {
+            var messages = _serialMonitorService.Messages;
+            SerialMonitorText = string.Join(Environment.NewLine, messages.Select(m => m.FormattedMessage));
+            if (!string.IsNullOrEmpty(SerialMonitorText))
+            {
+                SerialMonitorText += Environment.NewLine;
+            }
+            _serialMessageCount = messages.Count;
+            OnPropertyChanged(nameof(SerialMessageCount));
+        }
+
+        /// <summary>
+        /// 기존 API 메시지들을 텍스트에 로드
+        /// </summary>
+        private void LoadExistingApiMessages()
+        {
+            var messages = _apiMonitorService.Messages;
+            ApiMonitorText = string.Join(Environment.NewLine, messages.Select(m => m.FormattedMessage));
+            if (!string.IsNullOrEmpty(ApiMonitorText))
+            {
+                ApiMonitorText += Environment.NewLine;
+            }
+            
+            _apiRequestCount = messages.Count;
+            _apiSuccessCount = messages.Count(m => m.StatusCode.HasValue && 
+                (int)m.StatusCode.Value >= 200 && (int)m.StatusCode.Value < 300);
+            
+            OnPropertyChanged(nameof(ApiRequestCount));
+            OnPropertyChanged(nameof(ApiSuccessRate));
+        }
+
+        // 시뮬레이션 관련 메서드들
+        
+        /// <summary>
+        /// 시뮬레이션 토글 (시작/중지)
+        /// </summary>
+        private void ToggleSimulation()
+        {
+            if (IsSimulating)
+            {
+                StopSimulation();
+            }
+            else
+            {
+                StartSimulation();
+            }
+        }
+
+        /// <summary>
+        /// 시뮬레이션 시작
+        /// </summary>
+        private void StartSimulation()
+        {
+            try
+            {
+                if (int.TryParse(SimulationInterval, out var interval) && interval > 0)
+                {
+                    _serialDataSimulator.Start(interval);
+                    IsSimulating = true;
+                    Status = $"Simulation started (interval: {interval}s)";
+                    _logger.LogInformation("Serial data simulation started with interval: {Interval}s", interval);
+                }
+                else
+                {
+                    System.Windows.MessageBox.Show("Please enter a valid simulation interval (positive number).", 
+                        "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error starting simulation");
+                System.Windows.MessageBox.Show($"Error starting simulation: {ex.Message}", 
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 시뮬레이션 중지
+        /// </summary>
+        private void StopSimulation()
+        {
+            try
+            {
+                _serialDataSimulator.Stop();
+                IsSimulating = false;
+                Status = "Simulation stopped";
+                _logger.LogInformation("Serial data simulation stopped");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error stopping simulation");
+                System.Windows.MessageBox.Show($"Error stopping simulation: {ex.Message}", 
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 단일 시뮬레이션 데이터 생성
+        /// </summary>
+        private void GenerateSingleData()
+        {
+            try
+            {
+                _serialDataSimulator.GenerateSingleData();
+                Status = "Single simulation data generated";
+                _logger.LogInformation("Single simulation data generated");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating single simulation data");
+                System.Windows.MessageBox.Show($"Error generating data: {ex.Message}", 
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 시뮬레이션 데이터 수신 이벤트 핸들러
+        /// </summary>
+        private async void OnSimulatedDataReceived(object? sender, SimulatedSerialDataEventArgs e)
+        {
+            try
+            {
+                // 시뮬레이션 데이터를 실제 시리얼 데이터처럼 처리
+                var serialEventArgs = new Models.SerialDataReceivedEventArgs(e.Data);
+                
+                // 시리얼 모니터에 시뮬레이션 데이터 기록
+                _serialMonitorService.LogSerialReceived($"[SIM] {e.DataString}");
+                
+                // 데이터 매핑 처리
+                await Task.Run(async () =>
+                {
+                    await _dataMappingService.ProcessDataAsync(e.DataString, DataSource.Serial);
+                });
+                
+                // STX/ETX 기반 파싱하여 큐에 추가
+                _queueService.ParseAndEnqueue(e.Data);
+                
+                // UI 업데이트
+                await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    UpdateQueueCount();
+                    Status = $"Simulation data processed. Queue: {QueueCount} (Scenario: {e.Scenario})";
+                });
+                
+                _logger.LogDebug("Processed simulation data: '{Data}' (Scenario: {Scenario})", 
+                    e.DataString, e.Scenario);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing simulated data: {Data}", e.DataString);
+            }
         }
 
         // INotifyPropertyChanged Implementation

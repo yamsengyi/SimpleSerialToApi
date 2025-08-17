@@ -5,12 +5,17 @@ using Microsoft.Extensions.Logging;
 using SimpleSerialToApi.Services;
 using SimpleSerialToApi.ViewModels;
 using Serilog;
+using System.Linq;
+using WpfApplication = System.Windows.Application;
+using WpfMessageBox = System.Windows.MessageBox;
 
 namespace SimpleSerialToApi
 {
-    public partial class App : Application
+    public partial class App : WpfApplication
     {
         private ServiceProvider? _serviceProvider;
+        private TrayIconService? _trayIconService;
+        private bool _startMinimized = false;
         
         public ServiceProvider? ServiceProvider => _serviceProvider;
 
@@ -20,6 +25,9 @@ namespace SimpleSerialToApi
             {
                 base.OnStartup(e);
 
+                // 명령행 인수 처리
+                _startMinimized = e.Args.Contains("--minimized");
+
                 // Serilog 설정
                 Log.Logger = new LoggerConfiguration()
                     .MinimumLevel.Information()
@@ -27,7 +35,7 @@ namespace SimpleSerialToApi
                     .WriteTo.File("logs/app.log", rollingInterval: RollingInterval.Day)
                     .CreateLogger();
 
-                Log.Information("Application starting...");
+                Log.Information("Application starting... (StartMinimized: {StartMinimized})", _startMinimized);
 
                 // 서비스 컨테이너 설정
                 var services = new ServiceCollection();
@@ -36,16 +44,47 @@ namespace SimpleSerialToApi
 
                 Log.Information("Services configured successfully");
 
+                // 트레이 아이콘 초기화
+                _trayIconService = _serviceProvider.GetRequiredService<TrayIconService>();
+                _trayIconService.Initialize();
+
                 // 메인 윈도우 시작
-                var mainWindow = new MainWindow();
+                var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
                 Log.Information("MainWindow created");
                 
-                mainWindow.Show();
-                Log.Information("MainWindow shown");
+                // 트레이 아이콘에 윈도우 연결 (표시 전에 먼저 연결)
+                _trayIconService.SetMainWindow(mainWindow);
+                
+                if (_startMinimized)
+                {
+                    // 최소화 상태로 시작 - 트레이에만 표시
+                    mainWindow.WindowState = WindowState.Minimized;
+                    mainWindow.ShowInTaskbar = false;
+                    
+                    // 윈도우를 숨긴 상태로 생성하고 트레이 아이콘 표시
+                    mainWindow.Show(); // 초기화를 위해 한번 Show
+                    mainWindow.Hide(); // 즉시 숨김
+                    _trayIconService.Show();
+                    _trayIconService.UpdateStatus(false, "프로그램이 트레이에서 실행 중입니다.");
+                    
+                    Log.Information("MainWindow started minimized to tray");
+                }
+                else
+                {
+                    mainWindow.Show();
+                    Log.Information("MainWindow shown normally");
+                }
+
+                // 트레이 아이콘 이벤트 연결
+                _trayIconService.ExitApplication += (s, e) => 
+                {
+                    Log.Information("Exit requested from tray icon");
+                    Shutdown();
+                };
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Application startup failed: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                WpfMessageBox.Show($"Application startup failed: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 Environment.Exit(1);
             }
         }
@@ -55,21 +94,36 @@ namespace SimpleSerialToApi
             // Logging
             services.AddLogging(builder => builder.AddSerilog());
 
+            // COM 포트 검색 서비스
+            services.AddSingleton<ComPortDiscoveryService>();
+
             // 핵심 서비스들
             services.AddSingleton<SerialCommunicationService>();
             services.AddSingleton<SimpleQueueService>();
             services.AddSingleton<SimpleHttpService>();
             services.AddSingleton<TimerService>();
 
+            // 새로 추가된 통신 기능 서비스들
+            services.AddSingleton<ReservedWordService>();
+            services.AddSingleton<DataMappingService>();
+            services.AddSingleton<SerialMonitorService>();
+            services.AddSingleton<ApiMonitorService>();
+            services.AddSingleton<SerialDataSimulator>();
+
+            // 시스템 통합 서비스들
+            services.AddSingleton<TrayIconService>();
+            services.AddSingleton<StartupService>();
+
             // ViewModels
             services.AddTransient<MainViewModel>();
 
-            // Views - MainWindow는 DI에서 제외하고 직접 생성
-            //services.AddSingleton<MainWindow>();
+            // Views
+            services.AddSingleton<MainWindow>();
         }
 
         protected override void OnExit(ExitEventArgs e)
         {
+            _trayIconService?.Dispose();
             _serviceProvider?.Dispose();
             Log.CloseAndFlush();
             base.OnExit(e);

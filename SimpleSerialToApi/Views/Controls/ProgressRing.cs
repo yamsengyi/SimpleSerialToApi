@@ -3,7 +3,7 @@ using System.Windows.Controls;
 
 namespace SimpleSerialToApi.Views.Controls
 {
-    public class ProgressRing : Control
+    public class ProgressRing : System.Windows.Controls.Control
     {
         static ProgressRing()
         {

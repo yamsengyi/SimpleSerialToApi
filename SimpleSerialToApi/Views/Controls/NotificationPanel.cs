@@ -5,7 +5,7 @@ using System.Windows.Input;
 
 namespace SimpleSerialToApi.Views.Controls
 {
-    public class NotificationPanel : Control
+    public class NotificationPanel : System.Windows.Controls.Control
     {
         static NotificationPanel()
         {

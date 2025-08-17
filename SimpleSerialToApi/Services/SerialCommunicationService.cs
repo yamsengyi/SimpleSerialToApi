@@ -13,6 +13,7 @@ namespace SimpleSerialToApi.Services
     public class SerialCommunicationService : ISerialCommunicationService
     {
         private readonly ILogger<SerialCommunicationService> _logger;
+        private readonly ComPortDiscoveryService _comPortDiscovery;
         private SerialPort? _serialPort;
         private readonly SemaphoreSlim _connectionSemaphore = new(1, 1);
         private bool _disposed = false;
@@ -24,9 +25,12 @@ namespace SimpleSerialToApi.Services
         
         public SerialConnectionSettings ConnectionSettings { get; private set; }
 
-        public SerialCommunicationService(ILogger<SerialCommunicationService> logger)
+        public SerialCommunicationService(
+            ILogger<SerialCommunicationService> logger, 
+            ComPortDiscoveryService comPortDiscovery)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _comPortDiscovery = comPortDiscovery ?? throw new ArgumentNullException(nameof(comPortDiscovery));
             
             ConnectionSettings = LoadConnectionSettings();
             _logger.LogInformation("SerialCommunicationService initialized with port {PortName}", ConnectionSettings.PortName);
@@ -61,6 +65,10 @@ namespace SimpleSerialToApi.Services
                 _serialPort.DataReceived += SerialPort_DataReceived;
 
                 _serialPort.Open();
+
+                // 연결 성공 시 마지막 사용 포트로 저장 및 자동 연결 활성화
+                _comPortDiscovery.SaveLastUsedComPort(ConnectionSettings.PortName);
+                _comPortDiscovery.EnableAutoConnect(ConnectionSettings.PortName);
 
                 var eventArgs = new Models.SerialConnectionEventArgs(true, ConnectionSettings.PortName, "Connected successfully");
                 ConnectionStatusChanged?.Invoke(this, eventArgs);
@@ -246,7 +254,20 @@ namespace SimpleSerialToApi.Services
             
             try
             {
-                settings.PortName = ConfigurationManager.AppSettings["SerialPort"] ?? settings.PortName;
+                // 스마트 COM 포트 선택: App.config에 지정되지 않았다면 자동 선택
+                var configuredPort = ConfigurationManager.AppSettings["SerialPort"];
+                if (string.IsNullOrEmpty(configuredPort))
+                {
+                    var smartSelectedPort = _comPortDiscovery.GetBestAvailableComPort();
+                    settings.PortName = smartSelectedPort ?? settings.PortName;
+                    _logger.LogInformation("Smart selected COM port: {PortName}", settings.PortName);
+                }
+                else
+                {
+                    settings.PortName = configuredPort;
+                    _logger.LogInformation("Using configured COM port: {PortName}", settings.PortName);
+                }
+
                 settings.BaudRate = int.TryParse(ConfigurationManager.AppSettings["BaudRate"], out var baudRate) ? baudRate : settings.BaudRate;
                 settings.DataBits = int.TryParse(ConfigurationManager.AppSettings["DataBits"], out var dataBits) ? dataBits : settings.DataBits;
                 settings.ReadTimeout = int.TryParse(ConfigurationManager.AppSettings["ReadTimeout"], out var readTimeout) ? readTimeout : settings.ReadTimeout;

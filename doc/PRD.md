@@ -13,7 +13,7 @@ Windows 환경에서 Serial 통신으로 장비 데이터를 수집하고, STX/E
 #### 2.1 Serial 통신
 - 사용자가 지정한 시리얼 포트(COM3, COM4 등)로 장비와 연결
 - 기본 시리얼 포트 설정: baudrate, parity, stopbits
-- 실시간 Serial 데이터 수신 및 연결 상태 표시
+- 실시간 Serial 데이터 수신 및 연결 상태 표시 
 
 #### 2.2 데이터 Queue 관리
 - STX/ETX 기반 메시지 파싱 및 완전한 메시지 단위로 Queue 적재

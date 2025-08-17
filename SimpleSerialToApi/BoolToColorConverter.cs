@@ -11,9 +11,9 @@ namespace SimpleSerialToApi
         {
             if (value is bool boolValue)
             {
-                return boolValue ? Brushes.Green : Brushes.Red;
+                return boolValue ? System.Windows.Media.Brushes.Green : System.Windows.Media.Brushes.Red;
             }
-            return Brushes.Gray;
+            return System.Windows.Media.Brushes.Gray;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

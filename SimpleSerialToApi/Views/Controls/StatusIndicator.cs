@@ -5,7 +5,7 @@ using SimpleSerialToApi.ViewModels;
 
 namespace SimpleSerialToApi.Views.Controls
 {
-    public class StatusIndicator : Control
+    public class StatusIndicator : System.Windows.Controls.Control
     {
         static StatusIndicator()
         {
@@ -61,11 +61,11 @@ namespace SimpleSerialToApi.Views.Controls
         {
             var brush = Status switch
             {
-                ConnectionStatus.Connected => Brushes.Green,
-                ConnectionStatus.Connecting => Brushes.Orange,
-                ConnectionStatus.Disconnected => Brushes.Gray,
-                ConnectionStatus.Error => Brushes.Red,
-                _ => Brushes.Gray
+                ConnectionStatus.Connected => System.Windows.Media.Brushes.Green,
+                ConnectionStatus.Connecting => System.Windows.Media.Brushes.Orange,
+                ConnectionStatus.Disconnected => System.Windows.Media.Brushes.Gray,
+                ConnectionStatus.Error => System.Windows.Media.Brushes.Red,
+                _ => System.Windows.Media.Brushes.Gray
             };
 
             SetValue(ForegroundProperty, brush);

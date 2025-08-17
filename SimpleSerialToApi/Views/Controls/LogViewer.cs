@@ -3,10 +3,12 @@ using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using SimpleSerialToApi.ViewModels;
+using WpfControl = System.Windows.Controls.Control;
+using WpfListBox = System.Windows.Controls.ListBox;
 
 namespace SimpleSerialToApi.Views.Controls
 {
-    public class LogViewer : Control
+    public class LogViewer : WpfControl
     {
         static LogViewer()
         {
@@ -44,14 +46,14 @@ namespace SimpleSerialToApi.Views.Controls
             set => SetValue(AutoScrollProperty, value);
         }
 
-        private ListBox? _listBox;
+        private WpfListBox? _listBox;
         private ScrollViewer? _scrollViewer;
 
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
 
-            _listBox = GetTemplateChild("PART_LogList") as ListBox;
+            _listBox = GetTemplateChild("PART_LogList") as WpfListBox;
             _scrollViewer = GetTemplateChild("PART_ScrollViewer") as ScrollViewer;
             
             if (LogEntries != null && LogEntries.Any())

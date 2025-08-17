@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using ThreadingTimer = System.Threading.Timer;
 
 namespace SimpleSerialToApi.Services
 {
@@ -14,8 +15,13 @@ namespace SimpleSerialToApi.Services
         private readonly ILogger<TimerService> _logger;
         private readonly SimpleHttpService _httpService;
         private readonly SimpleQueueService _queueService;
-        private Timer? _timer;
+        private ThreadingTimer? _timer;
         private bool _disposed = false;
+
+        /// <summary>
+        /// 큐 처리 완료 이벤트
+        /// </summary>
+        public event EventHandler? QueueProcessed;
 
         public TimerService(
             ILogger<TimerService> logger,
@@ -35,7 +41,7 @@ namespace SimpleSerialToApi.Services
             if (_timer != null)
                 return;
 
-            _timer = new Timer(ProcessQueue, null, TimeSpan.Zero, TimeSpan.FromSeconds(intervalSeconds));
+            _timer = new ThreadingTimer(ProcessQueue, null, TimeSpan.Zero, TimeSpan.FromSeconds(intervalSeconds));
             _logger.LogInformation("Timer started with {Interval} seconds interval", intervalSeconds);
         }
 
@@ -64,6 +70,9 @@ namespace SimpleSerialToApi.Services
                 {
                     await SendDataAsync(messages);
                 }
+                
+                // 큐 처리 완료 이벤트 발생
+                QueueProcessed?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {

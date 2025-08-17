@@ -3,6 +3,8 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using SimpleSerialToApi.ViewModels;
+using WpfBrush = System.Windows.Media.Brush;
+using WpfBrushes = System.Windows.Media.Brushes;
 
 namespace SimpleSerialToApi.Converters
 {
@@ -14,14 +16,14 @@ namespace SimpleSerialToApi.Converters
             {
                 return status switch
                 {
-                    ConnectionStatus.Connected => Brushes.Green,
-                    ConnectionStatus.Connecting => Brushes.Orange,
-                    ConnectionStatus.Disconnected => Brushes.Gray,
-                    ConnectionStatus.Error => Brushes.Red,
-                    _ => Brushes.Gray
+                    ConnectionStatus.Connected => WpfBrushes.Green,
+                    ConnectionStatus.Connecting => WpfBrushes.Orange,
+                    ConnectionStatus.Disconnected => WpfBrushes.Gray,
+                    ConnectionStatus.Error => WpfBrushes.Red,
+                    _ => WpfBrushes.Gray
                 };
             }
-            return Brushes.Gray;
+            return WpfBrushes.Gray;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -38,15 +40,15 @@ namespace SimpleSerialToApi.Converters
             {
                 return state switch
                 {
-                    ApplicationState.Running => Brushes.Green,
-                    ApplicationState.Starting => Brushes.Orange,
-                    ApplicationState.Stopping => Brushes.Orange,
-                    ApplicationState.Stopped => Brushes.Gray,
-                    ApplicationState.Error => Brushes.Red,
-                    _ => Brushes.Gray
+                    ApplicationState.Running => WpfBrushes.Green,
+                    ApplicationState.Starting => WpfBrushes.Orange,
+                    ApplicationState.Stopping => WpfBrushes.Orange,
+                    ApplicationState.Stopped => WpfBrushes.Gray,
+                    ApplicationState.Error => WpfBrushes.Red,
+                    _ => WpfBrushes.Gray
                 };
             }
-            return Brushes.Gray;
+            return WpfBrushes.Gray;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -57,8 +59,8 @@ namespace SimpleSerialToApi.Converters
 
     public class BooleanToColorConverter : IValueConverter
     {
-        public Brush TrueColor { get; set; } = Brushes.Green;
-        public Brush FalseColor { get; set; } = Brushes.Red;
+        public WpfBrush TrueColor { get; set; } = WpfBrushes.Green;
+        public WpfBrush FalseColor { get; set; } = WpfBrushes.Red;
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
@@ -138,16 +140,16 @@ namespace SimpleSerialToApi.Converters
             {
                 return level.ToUpper() switch
                 {
-                    "ERROR" => Brushes.Red,
-                    "WARN" => Brushes.Orange,
-                    "WARNING" => Brushes.Orange,
-                    "INFO" => Brushes.Blue,
-                    "DEBUG" => Brushes.Gray,
-                    "TRACE" => Brushes.LightGray,
-                    _ => Brushes.Black
+                    "ERROR" => WpfBrushes.Red,
+                    "WARN" => WpfBrushes.Orange,
+                    "WARNING" => WpfBrushes.Orange,
+                    "INFO" => WpfBrushes.Blue,
+                    "DEBUG" => WpfBrushes.Gray,
+                    "TRACE" => WpfBrushes.LightGray,
+                    _ => WpfBrushes.Black
                 };
             }
-            return Brushes.Black;
+            return WpfBrushes.Black;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

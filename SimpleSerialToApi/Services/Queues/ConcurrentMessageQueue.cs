@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ThreadingTimer = System.Threading.Timer;
 
 namespace SimpleSerialToApi.Services.Queues
 {
@@ -22,7 +23,7 @@ namespace SimpleSerialToApi.Services.Queues
         private readonly QueueStatistics _statistics;
         private readonly SemaphoreSlim _semaphore;
         private readonly object _statsLock = new object();
-        private readonly Timer _statisticsUpdateTimer;
+        private readonly ThreadingTimer _statisticsUpdateTimer;
         private volatile bool _disposed = false;
 
         /// <summary>
@@ -94,7 +95,7 @@ namespace SimpleSerialToApi.Services.Queues
             _semaphore = new SemaphoreSlim(configuration.MaxSize, configuration.MaxSize);
 
             // Update statistics every 5 seconds
-            _statisticsUpdateTimer = new Timer(UpdateStatistics, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+            _statisticsUpdateTimer = new ThreadingTimer(UpdateStatistics, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
         }
 
         /// <summary>
