@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SimpleSerialToApi.Models;
@@ -237,27 +239,117 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         private void LoadDefaultScenarios()
         {
-            // 예시 시나리오들을 기본으로 생성
-            var defaultScenarios = new[]
+            try
             {
-                new DataMappingScenario
+                // 파일에서 시나리오 로드 시도
+                if (LoadScenariosFromFile())
                 {
-                    Name = "Temperature Reading",
-                    Source = DataSource.Serial,
-                    Identifier = "TEMP:",
-                    ValueTemplate = "{\"deviceId\":\"@deviceId\",\"type\":\"temperature\",\"value\":\"@originalData\",\"timestamp\":\"@yyyyMMddHHmmss\"}",
-                    TransmissionType = TransmissionType.Api,
-                    ApiMethod = "POST",
-                    ApiEndpoint = "/api/sensor/temperature"
+                    _logger.LogInformation("Loaded {Count} scenarios from file", _scenarios.Count);
+                    return;
                 }
-            };
 
-            foreach (var scenario in defaultScenarios)
-            {
-                _scenarios.Add(scenario);
+                // 파일 로드 실패 시 기본 시나리오들 생성
+                var defaultScenarios = new[]
+                {
+                    new DataMappingScenario
+                    {
+                        Name = "Scenario 1",
+                        Source = DataSource.Serial,
+                        Identifier = "[01]",
+                        ValueTemplate = "@yyyyMMddHHmmssfff-@deviceId-{value}",
+                        TransmissionType = TransmissionType.Api,
+                        ApiMethod = "POST",
+                        ApiEndpoint = "/api/sensor-data",
+                        IsEnabled = true
+                    },
+                    new DataMappingScenario
+                    {
+                        Name = "Scenario 2",
+                        Source = DataSource.Serial,
+                        Identifier = "[99]",
+                        ValueTemplate = "{value}",
+                        TransmissionType = TransmissionType.Api,
+                        ApiMethod = "POST",
+                        ApiEndpoint = "/api/test2.html",
+                        IsEnabled = true
+                    }
+                };
+
+                foreach (var scenario in defaultScenarios)
+                {
+                    _scenarios.Add(scenario);
+                }
+
+                // 기본 시나리오들을 파일에 저장
+                SaveScenariosToFile();
+                
+                _logger.LogInformation("Loaded {Count} default scenarios", defaultScenarios.Length);
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading default scenarios");
+            }
+        }
 
-            _logger.LogInformation("Loaded {Count} default scenarios", defaultScenarios.Length);
+        /// <summary>
+        /// 시나리오들을 파일에 저장
+        /// </summary>
+        public void SaveScenariosToFile()
+        {
+            try
+            {
+                var scenariosFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data-mapping-scenarios.json");
+                
+                var options = new JsonSerializerOptions 
+                { 
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+                
+                var json = JsonSerializer.Serialize(_scenarios, options);
+                File.WriteAllText(scenariosFilePath, json);
+                
+                _logger.LogInformation("Saved {Count} scenarios to file: {FilePath}", _scenarios.Count, scenariosFilePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving scenarios to file");
+            }
+        }
+
+        /// <summary>
+        /// 파일에서 시나리오들을 로드
+        /// </summary>
+        private bool LoadScenariosFromFile()
+        {
+            try
+            {
+                var scenariosFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data-mapping-scenarios.json");
+                
+                if (!File.Exists(scenariosFilePath))
+                {
+                    return false;
+                }
+
+                var json = File.ReadAllText(scenariosFilePath);
+                var scenarios = JsonSerializer.Deserialize<List<DataMappingScenario>>(json, new JsonSerializerOptions 
+                { 
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase 
+                });
+
+                if (scenarios != null)
+                {
+                    _scenarios.Clear();
+                    _scenarios.AddRange(scenarios);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading scenarios from file");
+            }
+            
+            return false;
         }
     }
 

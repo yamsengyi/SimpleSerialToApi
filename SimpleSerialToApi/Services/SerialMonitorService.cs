@@ -172,6 +172,14 @@ namespace SimpleSerialToApi.Services
         }
 
         /// <summary>
+        /// 모든 로그 지우기 (Clear 메서드와 동일, 호환성을 위해 추가)
+        /// </summary>
+        public void ClearLogs()
+        {
+            Clear();
+        }
+
+        /// <summary>
         /// 메시지를 파일로 저장
         /// </summary>
         /// <param name="filePath">저장할 파일 경로</param>

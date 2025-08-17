@@ -29,6 +29,12 @@ This software includes third-party software components that are subject to their
 - Copyright: Microsoft Corporation
 - Website: https://dotnet.microsoft.com/
 
+### Microsoft Extensions Packages
+- License: MIT License
+- Copyright: Microsoft Corporation
+- Packages: Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Configuration, Microsoft.Extensions.Http, Microsoft.Extensions.Logging
+- Repository: https://github.com/dotnet/extensions
+
 ### System.IO.Ports
 - License: MIT License  
 - Copyright: Microsoft Corporation
@@ -38,6 +44,33 @@ This software includes third-party software components that are subject to their
 - License: MIT License
 - Copyright: Microsoft Corporation
 - Part of .NET Framework/.NET
+
+### Serilog
+- License: Apache License 2.0
+- Copyright: Serilog Contributors
+- Website: https://serilog.net/
+- Packages: Serilog, Serilog.Extensions.Logging, Serilog.Sinks.File, Serilog.Sinks.Console, Serilog.Sinks.EventLog, Serilog.Enrichers.*
+
+### Newtonsoft.Json
+- License: MIT License
+- Copyright: James Newton-King
+- Repository: https://github.com/JamesNK/Newtonsoft.Json
+
+### Polly
+- License: BSD 3-Clause License
+- Copyright: Polly Contributors
+- Repository: https://github.com/App-vNext/Polly
+- Description: Resilience and transient-fault-handling library
+
+### Microsoft.Xaml.Behaviors.Wpf
+- License: MIT License
+- Copyright: Microsoft Corporation
+- Repository: https://github.com/Microsoft/XamlBehaviorsWpf
+
+### System Configuration & Management
+- License: MIT License
+- Copyright: Microsoft Corporation
+- Packages: System.Configuration.ConfigurationManager, System.Diagnostics.EventLog, System.Drawing.Common, System.Management
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the third-party software.

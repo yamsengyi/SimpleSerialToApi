@@ -390,6 +390,60 @@ namespace SimpleSerialToApi.Services.Queues
             await Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Clears all messages from a specific queue
+        /// </summary>
+        /// <param name="queueName">Name of the queue to clear</param>
+        /// <returns>True if queue was found and cleared</returns>
+        public async Task<bool> ClearQueueAsync(string queueName)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(queueName) || !_queues.TryGetValue(queueName, out var queueObj))
+                {
+                    return false;
+                }
+
+                // Use reflection to call Clear method on the queue
+                var clearMethod = queueObj.GetType().GetMethod("Clear");
+                if (clearMethod != null)
+                {
+                    var result = clearMethod.Invoke(queueObj, null);
+                    if (result is Task task)
+                    {
+                        await task;
+                    }
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Clears all messages from all queues
+        /// </summary>
+        /// <returns>Number of queues that were cleared</returns>
+        public async Task<int> ClearAllQueuesAsync()
+        {
+            int clearedCount = 0;
+            var queueNames = GetQueueNames();
+            
+            foreach (var queueName in queueNames)
+            {
+                if (await ClearQueueAsync(queueName))
+                {
+                    clearedCount++;
+                }
+            }
+            
+            return clearedCount;
+        }
+
         #region Private Methods
 
         /// <summary>

@@ -8,6 +8,7 @@ using System.Windows.Input;
 using Microsoft.Extensions.Logging;
 using SimpleSerialToApi.Models;
 using SimpleSerialToApi.Services;
+using SimpleSerialToApi.Interfaces;
 
 namespace SimpleSerialToApi.ViewModels
 {
@@ -24,6 +25,9 @@ namespace SimpleSerialToApi.ViewModels
         private readonly ApiMonitorService _apiMonitorService;
         private readonly ReservedWordService _reservedWordService;
         private readonly SerialDataSimulator _serialDataSimulator;
+        private readonly IConfigurationService _configurationService;
+        private readonly IQueueManager _queueManager;
+        private readonly IQueueProcessor<MappedApiData> _apiDataQueueProcessor;
 
         private string _serialPort = "COM1";
         private string _apiUrl = "http://localhost:8080/api/data";
@@ -59,7 +63,10 @@ namespace SimpleSerialToApi.ViewModels
             SerialMonitorService serialMonitorService,
             ApiMonitorService apiMonitorService,
             ReservedWordService reservedWordService,
-            SerialDataSimulator serialDataSimulator)
+            SerialDataSimulator serialDataSimulator,
+            IConfigurationService configurationService,
+            IQueueManager queueManager,
+            IQueueProcessor<MappedApiData> apiDataQueueProcessor)
         {
             _logger = logger;
             _serialService = serialService;
@@ -71,6 +78,9 @@ namespace SimpleSerialToApi.ViewModels
             _serialMonitorService = serialMonitorService;
             _apiMonitorService = apiMonitorService;
             _reservedWordService = reservedWordService;
+            _configurationService = configurationService;
+            _queueManager = queueManager;
+            _apiDataQueueProcessor = apiDataQueueProcessor;
 
             // 시뮬레이터 초기화
             _serialDataSimulator = serialDataSimulator;
@@ -81,12 +91,16 @@ namespace SimpleSerialToApi.ViewModels
             DisconnectCommand = new RelayCommand(Disconnect, CanDisconnect);
             TestApiCommand = new RelayCommand(TestApi);
             RefreshPortsCommand = new RelayCommand(RefreshPorts);
+            OpenSerialConfigCommand = new RelayCommand(OpenSerialConfig);
             SetTransmissionIntervalCommand = new RelayCommand(SetTransmissionInterval);
             SetBatchSizeCommand = new RelayCommand(SetBatchSize);
             SetDeviceIdCommand = new RelayCommand(SetDeviceId);
             AddMappingScenarioCommand = new RelayCommand(AddMappingScenario);
             DeleteMappingScenarioCommand = new RelayCommand(DeleteMappingScenario);
             TestMappingCommand = new RelayCommand(TestMapping);
+            SaveMappingCommand = new RelayCommand(SaveMapping);
+            ApplyCommand = new RelayCommand(ApplyDataMapping);
+            CancelCommand = new RelayCommand(CancelDataMapping);
             ToggleSerialMonitorCommand = new RelayCommand(ToggleSerialMonitor);
             ToggleApiMonitorCommand = new RelayCommand(ToggleApiMonitor);
             SaveSerialMonitorCommand = new RelayCommand(SaveSerialMonitor);
@@ -107,6 +121,10 @@ namespace SimpleSerialToApi.ViewModels
             StartSimulationCommand = new RelayCommand(ToggleSimulation);
             StopSimulationCommand = new RelayCommand(StopSimulation);
             GenerateSingleDataCommand = new RelayCommand(GenerateSingleData);
+            
+            // Queue 및 로그 클리어 명령들
+            ClearQueueCommand = new RelayCommand(ClearQueue);
+            ClearLogsCommand = new RelayCommand(ClearLogs);
 
             // 이벤트 구독
             _serialService.DataReceived += OnSerialDataReceived;
@@ -117,6 +135,9 @@ namespace SimpleSerialToApi.ViewModels
             // 모니터 서비스 이벤트 구독
             _serialMonitorService.MessageAdded += OnSerialMonitorMessageAdded;
             _apiMonitorService.MessageAdded += OnApiMonitorMessageAdded;
+
+            // ConfigurationService에서 API URL 로드
+            LoadApiUrl();
 
             // API URL 설정
             _httpService.SetApiUrl(_apiUrl);
@@ -134,6 +155,9 @@ namespace SimpleSerialToApi.ViewModels
             // 초기 Queue 상태 업데이트
             UpdateQueueCount();
             
+            // 큐 매니저 초기화 및 API 데이터 처리 시작 (조건부)
+            _ = Task.Run(async () => await InitializeQueueProcessingConditional());
+            
             // 자동 연결 확인
             _ = Task.Run(CheckAutoConnect);
         }
@@ -142,7 +166,18 @@ namespace SimpleSerialToApi.ViewModels
         public string SerialPort
         {
             get => _serialPort;
-            set { _serialPort = value; OnPropertyChanged(); }
+            set 
+            { 
+                _serialPort = value; 
+                OnPropertyChanged();
+                
+                // SerialCommunicationService에 포트 업데이트
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    _serialService.UpdatePortName(value);
+                    _logger.LogInformation("Serial port updated to: {PortName}", value);
+                }
+            }
         }
 
         public string ApiUrl
@@ -291,6 +326,17 @@ namespace SimpleSerialToApi.ViewModels
         public List<DataSource> DataSources { get; } = new() { DataSource.Serial, DataSource.ApiResponse };
         public List<TransmissionType> TransmissionTypes { get; } = new() { TransmissionType.Serial, TransmissionType.Api };
         public List<string> ApiMethods { get; } = new() { "GET", "POST", "PUT", "DELETE" };
+        public List<string> ContentTypes { get; } = new() 
+        { 
+            "application/json", 
+            "application/xml", 
+            "text/plain", 
+            "text/html", 
+            "text/xml", 
+            "application/x-www-form-urlencoded",
+            "multipart/form-data",
+            "text/csv"
+        };
         
         private DataMappingScenario? _selectedMappingScenario;
         public DataMappingScenario? SelectedMappingScenario
@@ -343,12 +389,16 @@ namespace SimpleSerialToApi.ViewModels
         public ICommand DisconnectCommand { get; }
         public ICommand TestApiCommand { get; }
         public ICommand RefreshPortsCommand { get; }
+        public ICommand OpenSerialConfigCommand { get; }
         public ICommand SetTransmissionIntervalCommand { get; }
         public ICommand SetBatchSizeCommand { get; }
         public ICommand SetDeviceIdCommand { get; }
         public ICommand AddMappingScenarioCommand { get; }
         public ICommand DeleteMappingScenarioCommand { get; }
         public ICommand TestMappingCommand { get; }
+        public ICommand SaveMappingCommand { get; }
+        public ICommand ApplyCommand { get; }
+        public ICommand CancelCommand { get; }
         
         // 터미널 모니터 Commands (중복 제거)
         public ICommand ToggleSerialMonitorCommand { get; }
@@ -371,6 +421,10 @@ namespace SimpleSerialToApi.ViewModels
         public ICommand StartSimulationCommand { get; }
         public ICommand StopSimulationCommand { get; }
         public ICommand GenerateSingleDataCommand { get; }
+        
+        // Queue 및 로그 클리어 명령들
+        public ICommand ClearQueueCommand { get; }
+        public ICommand ClearLogsCommand { get; }
 
         // Command Methods
         private async void Connect()
@@ -509,10 +563,17 @@ namespace SimpleSerialToApi.ViewModels
             // 매핑 결과를 시리얼 모니터에 기록
             _serialMonitorService.LogMappingResult(e.OriginalData, e.Result.ProcessedData, e.Scenario.Name);
             
-            // API 전송 처리
-            if (e.Result.Success && e.Result.TransmissionType == TransmissionType.Api)
+            // 전송 타입에 따른 처리
+            if (e.Result.Success)
             {
-                await ProcessApiTransmission(e.Result, e.Scenario);
+                if (e.Result.TransmissionType == TransmissionType.Api)
+                {
+                    await ProcessApiTransmission(e.Result, e.Scenario);
+                }
+                else if (e.Result.TransmissionType == TransmissionType.Serial)
+                {
+                    await ProcessSerialTransmission(e.Result, e.Scenario);
+                }
             }
             
             // UI 스레드에서 상태 업데이트
@@ -523,9 +584,68 @@ namespace SimpleSerialToApi.ViewModels
         }
 
         /// <summary>
-        /// API 전송 처리
+        /// API 전송 처리 - 새로운 큐 시스템 사용
         /// </summary>
         private async Task ProcessApiTransmission(Services.MappingResult result, DataMappingScenario scenario)
+        {
+            try
+            {
+                // API 데이터 큐에 메시지 추가 - JSON 변환하지 않고 원본 데이터 사용
+                var apiData = new MappedApiData
+                {
+                    EndpointName = "default", // 기본 엔드포인트 사용
+                    ApiEndpoint = scenario.ApiEndpoint ?? "/", // 시나리오의 API 엔드포인트 사용
+                    ApiMethod = scenario.ApiMethod ?? "POST", // 시나리오의 HTTP 메서드 사용
+                    ContentType = scenario.ContentType ?? "application/json", // 시나리오의 ContentType 사용
+                    Payload = new Dictionary<string, object> { { "data", result.ProcessedData } }, // 처리된 데이터를 그대로 사용
+                    CreatedAt = DateTime.Now,
+                    MessageId = Guid.NewGuid().ToString(),
+                    Priority = 5,
+                    RetryCount = 0,
+                    MaxRetries = 3
+                };
+
+                // QueueMessage로 래핑
+                var queueMessage = new QueueMessage<MappedApiData>
+                {
+                    MessageId = apiData.MessageId,
+                    Payload = apiData,
+                    Priority = apiData.Priority,
+                    EnqueueTime = DateTime.UtcNow,
+                    Status = MessageStatus.Queued,
+                    RetryCount = 0
+                };
+
+                var queue = _queueManager.GetQueue<MappedApiData>("ApiDataQueue");
+                if (queue != null)
+                {
+                    await queue.EnqueueAsync(queueMessage);
+                    _logger.LogInformation("API data queued for scenario '{ScenarioName}': {Data}", 
+                        scenario.Name, result.ProcessedData);
+                    
+                    // API 모니터에 큐에 추가됨을 로그
+                    var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod, 
+                        scenario.ApiEndpoint ?? _apiUrl, result.ProcessedData);
+                    _apiMonitorService.LogApiResponse(requestId, System.Net.HttpStatusCode.Accepted, 
+                        "Queued for processing", null, 0);
+                }
+                else
+                {
+                    _logger.LogError("API data queue not found - falling back to direct transmission");
+                    await ProcessApiTransmissionFallback(result, scenario);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error queuing API data for scenario '{ScenarioName}'", scenario.Name);
+                await ProcessApiTransmissionFallback(result, scenario);
+            }
+        }
+
+        /// <summary>
+        /// API 전송 처리 - 기존 방식 (폴백용)
+        /// </summary>
+        private async Task ProcessApiTransmissionFallback(Services.MappingResult result, DataMappingScenario scenario)
         {
             try
             {
@@ -566,6 +686,48 @@ namespace SimpleSerialToApi.ViewModels
             {
                 _logger.LogError(ex, "Error during API transmission for scenario '{ScenarioName}'", scenario.Name);
                 _apiMonitorService.LogApiError(_apiMonitorService.LogApiRequest(result.ApiMethod, result.ApiEndpoint), ex);
+            }
+        }
+
+        /// <summary>
+        /// Serial 전송 처리 - 처리된 데이터를 시리얼 포트로 전송
+        /// </summary>
+        private async Task ProcessSerialTransmission(Services.MappingResult result, DataMappingScenario scenario)
+        {
+            try
+            {
+                _logger.LogInformation("Starting serial transmission for scenario '{ScenarioName}'", scenario.Name);
+                
+                if (!_serialService.IsConnected)
+                {
+                    _logger.LogWarning("Cannot transmit serial data - not connected to serial port");
+                    return;
+                }
+
+                string dataToSend = result.ProcessedData?.ToString() ?? string.Empty;
+                if (string.IsNullOrEmpty(dataToSend))
+                {
+                    _logger.LogWarning("No data to transmit for scenario '{ScenarioName}'", scenario.Name);
+                    return;
+                }
+
+                // 시리얼 데이터 전송
+                bool success = await _serialService.SendTextAsync(dataToSend);
+                
+                if (success)
+                {
+                    // 전송된 데이터를 시리얼 모니터에 TX로 기록
+                    _serialMonitorService.LogSerialSent(dataToSend);
+                    _logger.LogInformation("Serial transmission completed for scenario '{ScenarioName}': Success", scenario.Name);
+                }
+                else
+                {
+                    _logger.LogError("Serial transmission failed for scenario '{ScenarioName}'", scenario.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during serial transmission for scenario '{ScenarioName}'", scenario.Name);
             }
         }
 
@@ -811,6 +973,43 @@ namespace SimpleSerialToApi.ViewModels
         }
 
         /// <summary>
+        /// Loads API URL from configuration
+        /// </summary>
+        private void LoadApiUrl()
+        {
+            try
+            {
+                // 1. ConfigurationService의 API endpoints에서 default 또는 첫 번째 엔드포인트 가져오기
+                var config = _configurationService.ApplicationConfig;
+                if (config.ApiEndpoints != null && config.ApiEndpoints.Any())
+                {
+                    var defaultEndpoint = config.ApiEndpoints.FirstOrDefault(e => e.Name.Equals("default", StringComparison.OrdinalIgnoreCase))
+                                        ?? config.ApiEndpoints.First();
+                    
+                    _apiUrl = defaultEndpoint.Url;
+                    _logger.LogInformation("API URL loaded from configuration: {ApiUrl}", _apiUrl);
+                    return;
+                }
+
+                // 2. 레거시 AppSettings에서 가져오기
+                var legacyApiUrl = System.Configuration.ConfigurationManager.AppSettings["ApiEndpoint"];
+                if (!string.IsNullOrEmpty(legacyApiUrl))
+                {
+                    _apiUrl = legacyApiUrl;
+                    _logger.LogInformation("API URL loaded from legacy AppSettings: {ApiUrl}", _apiUrl);
+                    return;
+                }
+
+                // 3. 기본값 유지
+                _logger.LogWarning("No API URL found in configuration, using default: {ApiUrl}", _apiUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading API URL from configuration, using default: {ApiUrl}", _apiUrl);
+            }
+        }
+
+        /// <summary>
         /// Loads queue settings from App.config
         /// </summary>
         private void LoadQueueSettings()
@@ -1010,6 +1209,81 @@ namespace SimpleSerialToApi.ViewModels
         }
 
         /// <summary>
+        /// Saves the current mapping scenarios
+        /// </summary>
+        private void SaveMapping()
+        {
+            try
+            {
+                // 매핑 시나리오를 데이터 매핑 서비스에 저장
+                _dataMappingService.ClearScenarios();
+                foreach (var scenario in MappingScenarios)
+                {
+                    _dataMappingService.AddScenario(scenario);
+                }
+                
+                // 파일에 저장
+                _dataMappingService.SaveScenariosToFile();
+                
+                Status = $"Saved {MappingScenarios.Count} mapping scenarios to file";
+                _logger.LogInformation("Saved {Count} mapping scenarios to file", MappingScenarios.Count);
+            }
+            catch (Exception ex)
+            {
+                Status = "Error saving mapping scenarios";
+                _logger.LogError(ex, "Error saving mapping scenarios");
+            }
+        }
+
+        /// <summary>
+        /// Data mapping window close requested event
+        /// </summary>
+        public event EventHandler<bool>? DataMappingWindowCloseRequested;
+
+        /// <summary>
+        /// Applies data mapping changes and closes window
+        /// </summary>
+        private void ApplyDataMapping()
+        {
+            try
+            {
+                // 매핑 저장
+                SaveMapping();
+                
+                // 창 닫기 요청 (저장 성공)
+                DataMappingWindowCloseRequested?.Invoke(this, true);
+                
+                Status = "Data mapping changes applied and saved";
+                _logger.LogInformation("Data mapping changes applied and saved");
+            }
+            catch (Exception ex)
+            {
+                Status = "Error applying data mapping changes";
+                _logger.LogError(ex, "Error applying data mapping changes");
+            }
+        }
+
+        /// <summary>
+        /// Cancels data mapping changes
+        /// </summary>
+        private void CancelDataMapping()
+        {
+            try
+            {
+                // 창 닫기 요청 (저장하지 않음)
+                DataMappingWindowCloseRequested?.Invoke(this, false);
+                
+                Status = "Data mapping window closed without saving";
+                _logger.LogInformation("Data mapping window closed without saving");
+            }
+            catch (Exception ex)
+            {
+                Status = "Error closing data mapping window";
+                _logger.LogError(ex, "Error closing data mapping window");
+            }
+        }
+
+        /// <summary>
         /// Shows the serial monitor
         /// </summary>
         private void ShowSerialMonitor()
@@ -1200,18 +1474,69 @@ namespace SimpleSerialToApi.ViewModels
         }
 
         /// <summary>
+        /// Opens the Serial Configuration window
+        /// </summary>
+        private async void OpenSerialConfig()
+        {
+            try
+            {
+                // ConfigurationService에서 최신 설정을 가져옴
+                var currentSettings = _configurationService.ApplicationConfig.SerialSettings;
+                
+                var window = new Views.SerialConfigWindow(currentSettings);
+                var result = window.ShowDialog();
+                
+                if (result == true && window.IsChanged)
+                {
+                    // 설정을 ConfigurationService에 저장
+                    _configurationService.SaveSerialSettings(window.Settings);
+                    
+                    // SerialCommunicationService의 ConnectionSettings 전체 업데이트
+                    _serialService.UpdateConnectionSettings(window.Settings);
+                    
+                    // 설정이 변경되었으므로 연결이 되어있다면 재연결
+                    if (IsConnected)
+                    {
+                        Status = "Serial configuration changed, reconnecting...";
+                        Disconnect();
+                        await Task.Delay(500); // 잠시 대기
+                        Connect();
+                    }
+                    Status = "Serial configuration updated and saved";
+                    _logger.LogInformation("Serial configuration updated and saved");
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = "Error opening serial configuration window";
+                _logger.LogError(ex, "Error opening serial configuration window");
+            }
+        }
+
+        /// <summary>
         /// 기존 시리얼 메시지들을 텍스트에 로드
         /// </summary>
         private void LoadExistingSerialMessages()
         {
-            var messages = _serialMonitorService.Messages;
-            SerialMonitorText = string.Join(Environment.NewLine, messages.Select(m => m.FormattedMessage));
-            if (!string.IsNullOrEmpty(SerialMonitorText))
+            try
             {
-                SerialMonitorText += Environment.NewLine;
+                var messages = _serialMonitorService.Messages;
+                // null 체크를 추가하여 NullReferenceException 방지
+                SerialMonitorText = string.Join(Environment.NewLine, 
+                    messages.Where(m => m?.FormattedMessage != null)
+                           .Select(m => m.FormattedMessage));
+                if (!string.IsNullOrEmpty(SerialMonitorText))
+                {
+                    SerialMonitorText += Environment.NewLine;
+                }
+                _serialMessageCount = messages.Count;
+                OnPropertyChanged(nameof(SerialMessageCount));
             }
-            _serialMessageCount = messages.Count;
-            OnPropertyChanged(nameof(SerialMessageCount));
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading existing serial messages");
+                SerialMonitorText = "Error loading messages: " + ex.Message;
+            }
         }
 
         /// <summary>
@@ -1353,6 +1678,167 @@ namespace SimpleSerialToApi.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing simulated data: {Data}", e.DataString);
+            }
+        }
+
+        /// <summary>
+        /// 큐 매니저 초기화 및 API 데이터 처리 시작 (조건부)
+        /// </summary>
+        private async Task InitializeQueueProcessingConditional()
+        {
+            try
+            {
+                // 먼저 테스트 API 호출로 연결 확인
+                _logger.LogInformation("Testing API connectivity before enabling queue processing...");
+                
+                var testSuccess = await TestApiConnectivity();
+                if (testSuccess)
+                {
+                    _logger.LogInformation("API connectivity test successful - enabling queue processing");
+                    await InitializeQueueProcessing();
+                }
+                else
+                {
+                    _logger.LogWarning("API connectivity test failed - queue processing disabled");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during conditional queue initialization");
+            }
+        }
+
+        /// <summary>
+        /// API 연결성 테스트
+        /// </summary>
+        private async Task<bool> TestApiConnectivity()
+        {
+            try
+            {
+                var testUrl = "http://diveinto.space:54321";
+                var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                
+                var response = await httpClient.GetAsync(testUrl);
+                var success = response != null; // 어떤 응답이든 연결되면 성공
+                
+                _logger.LogInformation("API connectivity test result: {Success} (Status: {StatusCode})", 
+                    success, response?.StatusCode);
+                
+                return success;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "API connectivity test failed");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 큐 매니저 초기화 및 API 데이터 처리 시작
+        /// </summary>
+        private async Task InitializeQueueProcessing()
+        {
+            try
+            {
+                _logger.LogInformation("Initializing queue processing...");
+
+                // API 데이터 큐 생성
+                const string queueName = "ApiDataQueue";
+                var queueConfig = new QueueConfiguration
+                {
+                    MaxSize = 1000,
+                    BatchSize = 10,
+                    BatchTimeoutMs = 1000,
+                    RetryCount = 3,
+                    RetryIntervalMs = 5000,
+                    EnablePriority = false,
+                    ProcessorThreadCount = 1,
+                    EnableAsync = true,
+                    Name = queueName
+                };
+                
+                var queue = _queueManager.CreateQueue<MappedApiData>(queueName, queueConfig);
+                _logger.LogInformation("Created queue: {QueueName} with capacity: {Capacity}", queueName, queueConfig.MaxSize);
+
+                // 큐 프로세서 시작
+                var success = await _queueManager.StartProcessingAsync(queueName, _apiDataQueueProcessor);
+                
+                if (success)
+                {
+                    _logger.LogInformation("Queue processing started successfully");
+                }
+                else
+                {
+                    _logger.LogError("Failed to start queue processing");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error initializing queue processing");
+            }
+        }
+
+        /// <summary>
+        /// 메시지 큐 클리어
+        /// </summary>
+        private async void ClearQueue()
+        {
+            try
+            {
+                _logger.LogInformation("Clearing message queue...");
+                
+                // 큐 매니저를 통해 큐 클리어
+                var queueNames = _queueManager.GetQueueNames();
+                foreach (var queueName in queueNames)
+                {
+                    await _queueManager.ClearQueueAsync(queueName);
+                    _logger.LogInformation("Cleared queue: {QueueName}", queueName);
+                }
+                
+                // 레거시 큐 서비스도 클리어
+                _queueService.ClearQueue();
+                
+                // Queue Count 업데이트
+                QueueCount = 0;
+                
+                System.Windows.MessageBox.Show("메시지 큐가 성공적으로 삭제되었습니다.", "Queue 클리어", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                _logger.LogInformation("All message queues cleared successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing message queue");
+                System.Windows.MessageBox.Show($"큐 삭제 중 오류가 발생했습니다: {ex.Message}", "오류", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 모든 모니터 로그 클리어
+        /// </summary>
+        private void ClearLogs()
+        {
+            try
+            {
+                _logger.LogInformation("Clearing all monitor logs...");
+                
+                // Serial Monitor 로그 클리어
+                _serialMonitorService.ClearLogs();
+                
+                // API Monitor 로그 클리어
+                _apiMonitorService.ClearLogs();
+                
+                System.Windows.MessageBox.Show("모든 모니터 로그가 성공적으로 삭제되었습니다.", "로그 클리어", 
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                _logger.LogInformation("All monitor logs cleared successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing monitor logs");
+                System.Windows.MessageBox.Show($"로그 삭제 중 오류가 발생했습니다: {ex.Message}", "오류", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

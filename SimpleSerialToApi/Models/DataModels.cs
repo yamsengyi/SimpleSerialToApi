@@ -123,6 +123,21 @@ namespace SimpleSerialToApi.Models
         public string EndpointName { get; set; } = string.Empty;
 
         /// <summary>
+        /// API endpoint path (e.g., "/api/sensor-data")
+        /// </summary>
+        public string ApiEndpoint { get; set; } = string.Empty;
+
+        /// <summary>
+        /// HTTP method for the request (e.g., "GET", "POST", "PUT", "DELETE")
+        /// </summary>
+        public string ApiMethod { get; set; } = "POST";
+
+        /// <summary>
+        /// Content type for the request (e.g., "application/json", "text/plain")
+        /// </summary>
+        public string ContentType { get; set; } = "application/json";
+
+        /// <summary>
         /// Payload data mapped according to API requirements
         /// </summary>
         public Dictionary<string, object> Payload { get; set; } = new Dictionary<string, object>();

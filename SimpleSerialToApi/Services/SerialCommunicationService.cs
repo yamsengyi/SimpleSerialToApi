@@ -294,6 +294,50 @@ namespace SimpleSerialToApi.Services
             return settings;
         }
 
+        /// <summary>
+        /// Updates the connection settings with a new port name
+        /// </summary>
+        /// <param name="portName">The new port name to use</param>
+        public void UpdatePortName(string portName)
+        {
+            if (string.IsNullOrWhiteSpace(portName))
+            {
+                _logger.LogWarning("Attempted to set empty or null port name");
+                return;
+            }
+
+            if (ConnectionSettings.PortName != portName)
+            {
+                ConnectionSettings.PortName = portName;
+                _logger.LogInformation("Port name updated to: {PortName}", portName);
+            }
+        }
+
+        /// <summary>
+        /// Updates the complete connection settings
+        /// </summary>
+        /// <param name="settings">The new connection settings</param>
+        public void UpdateConnectionSettings(SerialConnectionSettings settings)
+        {
+            if (settings == null)
+            {
+                _logger.LogWarning("Attempted to set null connection settings");
+                return;
+            }
+
+            ConnectionSettings.PortName = settings.PortName;
+            ConnectionSettings.BaudRate = settings.BaudRate;
+            ConnectionSettings.Parity = settings.Parity;
+            ConnectionSettings.DataBits = settings.DataBits;
+            ConnectionSettings.StopBits = settings.StopBits;
+            ConnectionSettings.Handshake = settings.Handshake;
+            ConnectionSettings.ReadTimeout = settings.ReadTimeout;
+            ConnectionSettings.WriteTimeout = settings.WriteTimeout;
+
+            _logger.LogInformation("Connection settings updated: {PortName}, {BaudRate} baud, {DataBits} data bits, {Parity} parity, {StopBits} stop bits",
+                settings.PortName, settings.BaudRate, settings.DataBits, settings.Parity, settings.StopBits);
+        }
+
         public void Dispose()
         {
             if (!_disposed)

@@ -20,17 +20,23 @@ namespace SimpleSerialToApi.Services
         private readonly IApiClientFactory _clientFactory;
         private readonly IConfigurationService _configService;
         private readonly ILogger<HttpApiClientService> _logger;
+        private readonly ApiMonitorService _apiMonitorService;
+        private readonly ApiFileLogService _apiFileLogService;
         private readonly Dictionary<string, IApiAuthenticator> _authenticators;
 
         public HttpApiClientService(
             IApiClientFactory clientFactory,
             IConfigurationService configService,
             ILogger<HttpApiClientService> logger,
+            ApiMonitorService apiMonitorService,
+            ApiFileLogService apiFileLogService,
             IEnumerable<IApiAuthenticator> authenticators)
         {
             _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
             _configService = configService ?? throw new ArgumentNullException(nameof(configService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _apiMonitorService = apiMonitorService ?? throw new ArgumentNullException(nameof(apiMonitorService));
+            _apiFileLogService = apiFileLogService ?? throw new ArgumentNullException(nameof(apiFileLogService));
 
             _authenticators = new Dictionary<string, IApiAuthenticator>();
             foreach (var auth in authenticators ?? Enumerable.Empty<IApiAuthenticator>())
@@ -117,14 +123,11 @@ namespace SimpleSerialToApi.Services
                 var response = await GetAsync(endpointName);
                 stopwatch.Stop();
 
-                if (response.IsSuccess)
-                {
-                    return HealthCheckResult.Healthy(endpointName, stopwatch.Elapsed, response.StatusCode);
-                }
-                else
-                {
-                    return HealthCheckResult.Unhealthy(endpointName, response.ErrorMessage, response.StatusCode);
-                }
+                // 연결이 되어 HTTP 응답을 받았다면 건강한 것으로 판단 (상태 코드에 관계없이)
+                _logger.LogInformation("Health check for {EndpointName}: {StatusCode} {ResponseTime}ms", 
+                    endpointName, response.StatusCode, stopwatch.ElapsedMilliseconds);
+                
+                return HealthCheckResult.Healthy(endpointName, stopwatch.Elapsed, response.StatusCode);
             }
             catch (Exception ex)
             {
@@ -166,23 +169,40 @@ namespace SimpleSerialToApi.Services
                 await ApplyAuthenticationAsync(request, endpointConfig);
 
                 // Add request body for data-carrying methods
+                string? requestBody = null;
                 if (data != null && (method == HttpMethod.Post || method == HttpMethod.Put || method == HttpMethod.Patch))
                 {
                     var jsonContent = JsonConvert.SerializeObject(data);
-                    request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
+                    requestBody = jsonContent;
                     
-                    _logger.LogDebug("Sending {Method} request to {Url} with payload: {Payload}", 
-                        method, url, jsonContent);
+                    // ContentType 설정 (기본값: application/json)
+                    var contentType = endpointConfig.ContentType ?? "application/json";
+                    request.Content = new StringContent(jsonContent, Encoding.UTF8, contentType);
+                    
+                    _logger.LogInformation("Sending {Method} request to FULL PATH: {FullUrl} with payload: {Payload}, ContentType: {ContentType}, MessageId: {MessageId}", 
+                        method, url, jsonContent, contentType, messageId);
+                    
+                    // 파일 로그: 요청 (with body)
+                    await _apiFileLogService.LogRequestAsync(messageId, method.Method, url, requestBody, contentType);
                 }
                 else
                 {
-                    _logger.LogDebug("Sending {Method} request to {Url}", method, url);
+                    _logger.LogInformation("Sending {Method} request to FULL PATH: {FullUrl}, MessageId: {MessageId}", method, url, messageId);
+                    
+                    // 파일 로그: 요청 (without body)
+                    await _apiFileLogService.LogRequestAsync(messageId, method.Method, url, null, "");
                 }
 
                 // Send request
                 var response = await httpClient.SendAsync(request);
                 var responseContent = await response.Content.ReadAsStringAsync();
                 stopwatch.Stop();
+
+                // 파일 로그: 응답
+                await _apiFileLogService.LogResponseAsync(messageId, response.StatusCode, responseContent, stopwatch.Elapsed);
+
+                // API 모니터에 Response 로깅
+                _apiMonitorService.LogApiResponse(messageId, response.StatusCode, responseContent);
 
                 var apiResponse = new ApiResponse
                 {
@@ -219,18 +239,39 @@ namespace SimpleSerialToApi.Services
             {
                 stopwatch.Stop();
                 _logger.LogError(ex, "HTTP request exception for {Method} {EndpointName}", method, endpointName);
+                
+                // 파일 로그: 에러
+                await _apiFileLogService.LogErrorAsync(messageId, ex);
+                
+                // API 모니터에 에러 로깅
+                _apiMonitorService.LogApiError(messageId, ex);
+                
                 return ApiResponse.Failure(0, $"HTTP request failed: {ex.Message}", stopwatch.Elapsed, messageId);
             }
             catch (TaskCanceledException ex)
             {
                 stopwatch.Stop();
                 _logger.LogError(ex, "Request timeout for {Method} {EndpointName}", method, endpointName);
+                
+                // 파일 로그: 에러
+                await _apiFileLogService.LogErrorAsync(messageId, ex);
+                
+                // API 모니터에 에러 로깅
+                _apiMonitorService.LogApiError(messageId, ex);
+                
                 return ApiResponse.Failure(0, "Request timed out", stopwatch.Elapsed, messageId);
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
                 _logger.LogError(ex, "Unexpected exception for {Method} {EndpointName}", method, endpointName);
+                
+                // 파일 로그: 에러
+                await _apiFileLogService.LogErrorAsync(messageId, ex);
+                
+                // API 모니터에 에러 로깅
+                _apiMonitorService.LogApiError(messageId, ex);
+                
                 return ApiResponse.Failure(0, $"Unexpected error: {ex.Message}", stopwatch.Elapsed, messageId);
             }
         }

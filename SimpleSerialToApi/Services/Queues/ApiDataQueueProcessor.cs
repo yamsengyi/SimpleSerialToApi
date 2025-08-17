@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SimpleSerialToApi.Services.Queues
 {
@@ -18,6 +19,7 @@ namespace SimpleSerialToApi.Services.Queues
     {
         private readonly HttpClient _httpClient;
         private readonly IConfigurationService _configurationService;
+        private readonly ILogger<ApiDataQueueProcessor> _logger;
 
         /// <summary>
         /// Maximum number of messages to process in a batch
@@ -39,10 +41,12 @@ namespace SimpleSerialToApi.Services.Queues
         /// </summary>
         /// <param name="httpClient">HTTP client for API calls</param>
         /// <param name="configurationService">Configuration service</param>
-        public ApiDataQueueProcessor(HttpClient httpClient, IConfigurationService configurationService)
+        /// <param name="logger">Logger instance</param>
+        public ApiDataQueueProcessor(HttpClient httpClient, IConfigurationService configurationService, ILogger<ApiDataQueueProcessor> logger)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -73,8 +77,19 @@ namespace SimpleSerialToApi.Services.Queues
 
                 // Prepare HTTP request
                 var requestMessage = new HttpRequestMessage();
-                requestMessage.Method = new HttpMethod(endpoint.Method);
-                requestMessage.RequestUri = new Uri(endpoint.Url);
+                
+                // 시나리오에서 설정한 HTTP 메서드 사용 (우선순위: 시나리오 > 엔드포인트 설정)
+                var httpMethod = !string.IsNullOrEmpty(apiData.ApiMethod) ? apiData.ApiMethod : endpoint.Method;
+                requestMessage.Method = new HttpMethod(httpMethod);
+                
+                // Full Path 구성: Base URL + API Endpoint
+                var fullUrl = endpoint.Url.TrimEnd('/');
+                if (!string.IsNullOrEmpty(apiData.ApiEndpoint))
+                {
+                    var apiEndpoint = apiData.ApiEndpoint.TrimStart('/');
+                    fullUrl = $"{fullUrl}/{apiEndpoint}";
+                }
+                requestMessage.RequestUri = new Uri(fullUrl);
 
                 // Add headers
                 foreach (var header in endpoint.Headers)
@@ -98,14 +113,65 @@ namespace SimpleSerialToApi.Services.Queues
                     }
                 }
 
-                // Serialize payload
-                var jsonPayload = JsonSerializer.Serialize(apiData.Payload, new JsonSerializerOptions
+                // GET, DELETE 등은 일반적으로 body가 없으므로 HTTP 메서드에 따라 처리
+                if (httpMethod.ToUpper() == "GET" || httpMethod.ToUpper() == "DELETE")
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                    WriteIndented = false
-                });
+                    // GET/DELETE 요청은 body 없이 전송
+                    _logger.LogInformation("Sending HTTP request {Method} FULL PATH: {FullUrl} (no body for {Method} request)", 
+                        httpMethod, fullUrl, httpMethod);
+                }
+                else
+                {
+                    // POST, PUT, PATCH 등은 body와 함께 전송
+                    // Payload 처리: Dictionary에서 실제 데이터 추출
+                    string payloadContent;
+                    string contentType = "application/json"; // 기본값
+                    
+                    // ContentType 설정 (시나리오에서 지정한 경우 사용)
+                    if (!string.IsNullOrEmpty(apiData.ContentType))
+                    {
+                        contentType = apiData.ContentType;
+                    }
+                    
+                    // Payload에서 실제 데이터 추출
+                    if (apiData.Payload != null && apiData.Payload.ContainsKey("data"))
+                    {
+                        // "data" 키에서 실제 처리된 데이터 가져오기
+                        var dataValue = apiData.Payload["data"];
+                        if (dataValue is string stringData)
+                        {
+                            payloadContent = stringData;
+                        }
+                        else
+                        {
+                            // 문자열이 아닌 경우 JSON 직렬화
+                            payloadContent = JsonSerializer.Serialize(dataValue, new JsonSerializerOptions
+                            {
+                                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                                WriteIndented = false
+                            });
+                        }
+                    }
+                    else if (apiData.Payload != null && apiData.Payload.Count > 0)
+                    {
+                        // 전체 Payload를 JSON으로 직렬화
+                        payloadContent = JsonSerializer.Serialize(apiData.Payload, new JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                            WriteIndented = false
+                        });
+                    }
+                    else
+                    {
+                        payloadContent = string.Empty;
+                    }
 
-                requestMessage.Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                    requestMessage.Content = new StringContent(payloadContent, Encoding.UTF8, contentType);
+
+                    // 전송 직전 로깅 - FULL PATH와 실제 전송 데이터 확인
+                    _logger.LogInformation("Sending HTTP request {Method} FULL PATH: {FullUrl} with payload: {Payload}, ContentType: {ContentType}", 
+                        httpMethod, fullUrl, payloadContent, contentType);
+                }
 
                 // Set timeout
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(endpoint.Timeout));

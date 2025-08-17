@@ -56,6 +56,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 
                 <Label Grid.Column="0" Content="Port:" VerticalAlignment="Center"/>
@@ -74,8 +75,14 @@
                         Padding="8,5"
                         ToolTip="포트 목록 새로고침"
                         FontSize="14"/>
-                <Button Grid.Column="3" Content="Connect" Command="{Binding ConnectCommand}" Margin="5,0" Padding="10,5"/>
-                <Button Grid.Column="4" Content="Disconnect" Command="{Binding DisconnectCommand}" Margin="5,0" Padding="10,5"/>
+                <Button Grid.Column="3" 
+                        Content="통신설정" 
+                        Command="{Binding OpenSerialConfigCommand}" 
+                        Margin="5,0" 
+                        Padding="10,5"
+                        ToolTip="통신 파라미터 설정 (Baudrate, Parity, Data bits 등)"/>
+                <Button Grid.Column="4" Content="Connect" Command="{Binding ConnectCommand}" Margin="5,0" Padding="10,5"/>
+                <Button Grid.Column="5" Content="Disconnect" Command="{Binding DisconnectCommand}" Margin="5,0" Padding="10,5"/>
             </Grid>
         </GroupBox>
 
@@ -215,6 +222,12 @@
                 <Button Content="API Monitor 열기" Command="{Binding OpenApiMonitorCommand}" 
                         Margin="0,0,15,0" Padding="15,8" MinWidth="180" Background="LightCoral"
                         ToolTip="API 통신 모니터 창을 엽니다"/>
+                <Button Content="🗑️ Queue 클리어" Command="{Binding ClearQueueCommand}" 
+                        Margin="0,0,15,0" Padding="15,8" MinWidth="140" Background="Orange"
+                        ToolTip="메시지 큐를 모두 삭제합니다"/>
+                <Button Content="📋 로그 클리어" Command="{Binding ClearLogsCommand}" 
+                        Margin="0,0,15,0" Padding="15,8" MinWidth="140" Background="LightYellow"
+                        ToolTip="모든 모니터 로그를 삭제합니다"/>
                 <TextBlock Text="{Binding SerialMonitorStatus}" VerticalAlignment="Center" 
                            Margin="20,0,10,0" Foreground="Gray" FontSize="11"/>
                 <TextBlock Text="{Binding ApiMonitorStatus}" VerticalAlignment="Center" 

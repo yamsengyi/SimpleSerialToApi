@@ -18,6 +18,7 @@ namespace SimpleSerialToApi.Services
     {
         private readonly ILogger<ApiMonitorService> _logger;
         private readonly ObservableCollection<ApiMonitorMessage> _messages;
+        private readonly object _messagesLock = new object();
         private readonly int _maxMessages;
         private bool _isEnabled = true;
 
@@ -89,33 +90,36 @@ namespace SimpleSerialToApi.Services
         {
             if (!_isEnabled) return;
 
-            // 기존 요청 메시지를 찾아서 응답 정보 업데이트
-            var requestMessage = _messages.FirstOrDefault(m => m.RequestId == requestId);
-            if (requestMessage != null)
+            lock (_messagesLock)
             {
-                requestMessage.StatusCode = statusCode;
-                requestMessage.ResponseBody = responseBody ?? "";
-                requestMessage.ResponseHeaders = headers?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, string>();
-                requestMessage.ResponseTime = responseTime;
-                requestMessage.ResponseTimestamp = DateTime.Now;
-                requestMessage.IsCompleted = true;
-            }
-            else
-            {
-                // 요청 메시지를 찾을 수 없는 경우, 새로운 응답 전용 메시지 생성
-                var responseMessage = new ApiMonitorMessage
+                // 기존 요청 메시지를 찾아서 응답 정보 업데이트
+                var requestMessage = _messages.FirstOrDefault(m => m.RequestId == requestId);
+                if (requestMessage != null)
                 {
-                    RequestId = requestId,
-                    Timestamp = DateTime.Now,
-                    StatusCode = statusCode,
-                    ResponseBody = responseBody ?? "",
-                    ResponseHeaders = headers?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, string>(),
-                    ResponseTime = responseTime,
-                    Direction = MessageDirection.Receive,
-                    IsCompleted = true
-                };
+                    requestMessage.StatusCode = statusCode;
+                    requestMessage.ResponseBody = responseBody ?? "";
+                    requestMessage.ResponseHeaders = headers?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, string>();
+                    requestMessage.ResponseTime = responseTime;
+                    requestMessage.ResponseTimestamp = DateTime.Now;
+                    requestMessage.IsCompleted = true;
+                }
+                else
+                {
+                    // 요청 메시지를 찾을 수 없는 경우, 새로운 응답 전용 메시지 생성
+                    var responseMessage = new ApiMonitorMessage
+                    {
+                        RequestId = requestId,
+                        Timestamp = DateTime.Now,
+                        StatusCode = statusCode,
+                        ResponseBody = responseBody ?? "",
+                        ResponseHeaders = headers?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value) ?? new Dictionary<string, string>(),
+                        ResponseTime = responseTime,
+                        Direction = MessageDirection.Receive,
+                        IsCompleted = true
+                    };
 
-                AddMessage(responseMessage);
+                    AddMessage(responseMessage);
+                }
             }
         }
 
@@ -158,13 +162,16 @@ namespace SimpleSerialToApi.Services
         {
             try
             {
-                // 최대 메시지 수 제한
-                while (_messages.Count >= _maxMessages)
+                lock (_messagesLock)
                 {
-                    _messages.RemoveAt(0);
-                }
+                    // 최대 메시지 수 제한
+                    while (_messages.Count >= _maxMessages)
+                    {
+                        _messages.RemoveAt(0);
+                    }
 
-                _messages.Add(message);
+                    _messages.Add(message);
+                }
                 MessageAdded?.Invoke(this, message);
 
                 _logger.LogDebug("API monitor message added: {RequestId}", message.RequestId);
@@ -182,6 +189,14 @@ namespace SimpleSerialToApi.Services
         {
             _messages.Clear();
             _logger.LogInformation("API monitor messages cleared");
+        }
+
+        /// <summary>
+        /// 모든 로그 지우기 (Clear 메서드와 동일, 호환성을 위해 추가)
+        /// </summary>
+        public void ClearLogs()
+        {
+            Clear();
         }
 
         /// <summary>

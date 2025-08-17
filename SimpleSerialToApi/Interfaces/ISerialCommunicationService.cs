@@ -63,5 +63,17 @@ namespace SimpleSerialToApi.Interfaces
         /// </summary>
         /// <returns>Array of available port names</returns>
         string[] GetAvailablePorts();
+
+        /// <summary>
+        /// Updates the connection settings with a new port name
+        /// </summary>
+        /// <param name="portName">The new port name to use</param>
+        void UpdatePortName(string portName);
+
+        /// <summary>
+        /// Updates the complete connection settings
+        /// </summary>
+        /// <param name="settings">The new connection settings</param>
+        void UpdateConnectionSettings(SerialConnectionSettings settings);
     }
 }

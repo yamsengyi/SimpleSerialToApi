@@ -1,4 +1,5 @@
 using System.Windows;
+using SimpleSerialToApi.ViewModels;
 
 namespace SimpleSerialToApi.Views
 {
@@ -19,6 +20,28 @@ namespace SimpleSerialToApi.Views
         public DataMappingWindow(object dataContext) : this()
         {
             DataContext = dataContext;
+            
+            // ViewModel 이벤트 구독
+            if (DataContext is MainViewModel viewModel)
+            {
+                viewModel.DataMappingWindowCloseRequested += OnCloseRequested;
+            }
+        }
+
+        private void OnCloseRequested(object? sender, bool saved)
+        {
+            DialogResult = saved;
+            Close();
+        }
+
+        protected override void OnClosed(System.EventArgs e)
+        {
+            // 이벤트 구독 해제
+            if (DataContext is MainViewModel viewModel)
+            {
+                viewModel.DataMappingWindowCloseRequested -= OnCloseRequested;
+            }
+            base.OnClosed(e);
         }
     }
 }

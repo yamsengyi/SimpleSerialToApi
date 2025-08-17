@@ -396,6 +396,65 @@ namespace SimpleSerialToApi.Services
             }
         }
 
+        /// <summary>
+        /// Save serial connection settings to App.config
+        /// </summary>
+        public void SaveSerialSettings(SerialConnectionSettings settings)
+        {
+            try
+            {
+                lock (_configLock)
+                {
+                    if (_configuration != null)
+                    {
+                        SetAppSetting("SerialPort", settings.PortName);
+                        SetAppSetting("BaudRate", settings.BaudRate.ToString());
+                        SetAppSetting("Parity", settings.Parity.ToString());
+                        SetAppSetting("DataBits", settings.DataBits.ToString());
+                        SetAppSetting("StopBits", settings.StopBits.ToString());
+                        SetAppSetting("Handshake", settings.Handshake.ToString());
+                        SetAppSetting("ReadTimeout", settings.ReadTimeout.ToString());
+                        SetAppSetting("WriteTimeout", settings.WriteTimeout.ToString());
+
+                        _configuration.Save(ConfigurationSaveMode.Modified);
+                        ConfigurationManager.RefreshSection("appSettings");
+
+                        // Update local settings
+                        _applicationConfig.SerialSettings = settings;
+
+                        _logger.LogInformation("Serial settings saved successfully");
+                        
+                        // Notify listeners of configuration change
+                        ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs 
+                        { 
+                            SectionName = "SerialSettings", 
+                            ChangeDescription = "Serial communication settings updated" 
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving serial settings");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Set an application setting value
+        /// </summary>
+        private void SetAppSetting(string key, string value)
+        {
+            if (_configuration?.AppSettings.Settings[key] != null)
+            {
+                _configuration.AppSettings.Settings[key].Value = value;
+            }
+            else
+            {
+                _configuration?.AppSettings.Settings.Add(key, value);
+            }
+        }
+
         private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
         {
             // Debounce rapid file changes

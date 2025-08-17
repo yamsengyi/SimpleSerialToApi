@@ -3,7 +3,10 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SimpleSerialToApi.Services;
+using SimpleSerialToApi.Services.Queues;
 using SimpleSerialToApi.ViewModels;
+using SimpleSerialToApi.Interfaces;
+using SimpleSerialToApi.Models;
 using Serilog;
 using System.Linq;
 using WpfApplication = System.Windows.Application;
@@ -94,8 +97,14 @@ namespace SimpleSerialToApi
             // Logging
             services.AddLogging(builder => builder.AddSerilog());
 
+            // HTTP Client 서비스 추가
+            services.AddHttpClient();
+
             // COM 포트 검색 서비스
             services.AddSingleton<ComPortDiscoveryService>();
+
+            // 설정 관리 서비스
+            services.AddSingleton<IConfigurationService, ConfigurationService>();
 
             // 핵심 서비스들
             services.AddSingleton<SerialCommunicationService>();
@@ -103,11 +112,18 @@ namespace SimpleSerialToApi
             services.AddSingleton<SimpleHttpService>();
             services.AddSingleton<TimerService>();
 
+            // Queue Management System
+            services.AddSingleton<IQueueManager, QueueManager>();
+            services.AddSingleton<IQueueProcessor<MappedApiData>, ApiDataQueueProcessor>();
+            services.AddSingleton<IApiClientService, HttpApiClientService>();
+            services.AddSingleton<IApiClientFactory, ApiClientFactory>();
+
             // 새로 추가된 통신 기능 서비스들
             services.AddSingleton<ReservedWordService>();
             services.AddSingleton<DataMappingService>();
             services.AddSingleton<SerialMonitorService>();
             services.AddSingleton<ApiMonitorService>();
+            services.AddSingleton<ApiFileLogService>();
             services.AddSingleton<SerialDataSimulator>();
 
             // 시스템 통합 서비스들

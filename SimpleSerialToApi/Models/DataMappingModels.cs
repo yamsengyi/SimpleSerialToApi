@@ -36,6 +36,7 @@ namespace SimpleSerialToApi.Models
         private string _apiMethod = "POST";
         private string _apiEndpoint = string.Empty;
         private string _apiHeaders = string.Empty;
+        private string _contentType = "application/json";
         private string _authToken = string.Empty;
         private int _timeoutSeconds = 30;
         private int _retryCount = 3;
@@ -92,6 +93,12 @@ namespace SimpleSerialToApi.Models
         {
             get => _apiHeaders;
             set { _apiHeaders = value; OnPropertyChanged(nameof(ApiHeaders)); }
+        }
+
+        public string ContentType
+        {
+            get => _contentType;
+            set { _contentType = value; OnPropertyChanged(nameof(ContentType)); }
         }
 
         public string AuthToken

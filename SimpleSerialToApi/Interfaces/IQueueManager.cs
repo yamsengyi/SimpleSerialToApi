@@ -113,6 +113,19 @@ namespace SimpleSerialToApi.Interfaces
         int GetQueueCapacity(string queueName);
 
         /// <summary>
+        /// Clears all messages from a specific queue
+        /// </summary>
+        /// <param name="queueName">Name of the queue to clear</param>
+        /// <returns>True if queue was found and cleared</returns>
+        Task<bool> ClearQueueAsync(string queueName);
+
+        /// <summary>
+        /// Clears all messages from all queues
+        /// </summary>
+        /// <returns>Number of queues that were cleared</returns>
+        Task<int> ClearAllQueuesAsync();
+
+        /// <summary>
         /// Event raised when a queue is created
         /// </summary>
         event EventHandler<string>? QueueCreated;

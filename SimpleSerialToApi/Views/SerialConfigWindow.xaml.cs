@@ -29,7 +29,7 @@ namespace SimpleSerialToApi.Views
             _originalSettings = currentSettings;
             Settings = new SerialConnectionSettings
             {
-                PortName = currentSettings.PortName,
+                PortName = currentSettings.PortName, // 읽기 전용으로 유지 (변경은 메인화면에서만)
                 BaudRate = currentSettings.BaudRate,
                 Parity = currentSettings.Parity,
                 DataBits = currentSettings.DataBits,
@@ -50,6 +50,8 @@ namespace SimpleSerialToApi.Views
                 if (DataContext is SerialConfigViewModel viewModel)
                 {
                     viewModel.ApplyToSettings(Settings);
+                    // PortName은 항상 원본 설정 유지 (메인화면에서만 변경 가능)
+                    Settings.PortName = _originalSettings.PortName;
                 }
                 
                 // 변경 사항 확인
@@ -74,9 +76,11 @@ namespace SimpleSerialToApi.Views
         private void BtnDefault_Click(object sender, RoutedEventArgs e)
         {
             var defaultSettings = new SerialConnectionSettings();
+            // PortName은 원본 설정 유지 (메인화면에서만 변경 가능)
+            defaultSettings.PortName = _originalSettings.PortName;
             DataContext = new SerialConfigViewModel(defaultSettings);
             
-            System.Windows.MessageBox.Show("기본 설정으로 복원되었습니다.", 
+            System.Windows.MessageBox.Show("기본 설정으로 복원되었습니다.\n(COM PORT는 변경되지 않습니다)", 
                 "알림", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         
@@ -89,6 +93,9 @@ namespace SimpleSerialToApi.Views
                 {
                     var testSettings = new SerialConnectionSettings();
                     viewModel.ApplyToSettings(testSettings);
+                    
+                    // PortName은 원본 설정에서 가져오기 (메인화면에서만 변경 가능)
+                    testSettings.PortName = _originalSettings.PortName;
                     
                     using (var testPort = new SerialPort())
                     {
@@ -104,7 +111,7 @@ namespace SimpleSerialToApi.Views
                         testPort.Open();
                         testPort.Close();
                         
-                        System.Windows.MessageBox.Show("통신 설정 테스트가 성공했습니다!", 
+                        System.Windows.MessageBox.Show($"통신 설정 테스트가 성공했습니다!\nPort: {testSettings.PortName}", 
                             "테스트 성공", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 }

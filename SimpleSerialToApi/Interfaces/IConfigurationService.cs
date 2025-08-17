@@ -78,5 +78,11 @@ namespace SimpleSerialToApi.Interfaces
         /// Gets message queue configuration
         /// </summary>
         MessageQueueConfig MessageQueueConfig { get; }
+
+        /// <summary>
+        /// Save serial connection settings to configuration
+        /// </summary>
+        /// <param name="settings">Serial connection settings to save</param>
+        void SaveSerialSettings(SerialConnectionSettings settings);
     }
 }

@@ -3,9 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:system="clr-namespace:System;assembly=System.Runtime"
         xmlns:ports="clr-namespace:System.IO.Ports;assembly=System.IO.Ports"
-        Title="시리얼 통신 설정" Height="380" Width="450"
+        Title="시리얼 통신 설정" 
+        SizeToContent="WidthAndHeight"
+        MinWidth="450" MinHeight="400"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        ResizeMode="CanResize"
         ShowInTaskbar="False">
     
     <Window.Resources>
@@ -52,20 +54,22 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Label Grid.Column="0" Content="Baud Rate:" VerticalAlignment="Center"/>
-            <ComboBox Grid.Column="1" Name="ComboBaudRate" SelectedItem="{Binding BaudRate}" 
+            <ComboBox Grid.Column="1" Name="ComboBaudRate" SelectedValue="{Binding BaudRate}" 
                       VerticalAlignment="Center" Padding="5">
-                <ComboBoxItem Content="1200"/>
-                <ComboBoxItem Content="2400"/>
-                <ComboBoxItem Content="4800"/>
-                <ComboBoxItem Content="9600"/>
-                <ComboBoxItem Content="14400"/>
-                <ComboBoxItem Content="19200"/>
-                <ComboBoxItem Content="38400"/>
-                <ComboBoxItem Content="57600"/>
-                <ComboBoxItem Content="115200"/>
-                <ComboBoxItem Content="230400"/>
-                <ComboBoxItem Content="460800"/>
-                <ComboBoxItem Content="921600"/>
+                <ComboBox.Items>
+                    <system:Int32>1200</system:Int32>
+                    <system:Int32>2400</system:Int32>
+                    <system:Int32>4800</system:Int32>
+                    <system:Int32>9600</system:Int32>
+                    <system:Int32>14400</system:Int32>
+                    <system:Int32>19200</system:Int32>
+                    <system:Int32>38400</system:Int32>
+                    <system:Int32>57600</system:Int32>
+                    <system:Int32>115200</system:Int32>
+                    <system:Int32>230400</system:Int32>
+                    <system:Int32>460800</system:Int32>
+                    <system:Int32>921600</system:Int32>
+                </ComboBox.Items>
             </ComboBox>
         </Grid>
         
@@ -89,12 +93,14 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Label Grid.Column="0" Content="Data Bits:" VerticalAlignment="Center"/>
-            <ComboBox Grid.Column="1" Name="ComboDataBits" SelectedItem="{Binding DataBits}" 
+            <ComboBox Grid.Column="1" Name="ComboDataBits" SelectedValue="{Binding DataBits}" 
                       VerticalAlignment="Center" Padding="5">
-                <ComboBoxItem Content="5"/>
-                <ComboBoxItem Content="6"/>
-                <ComboBoxItem Content="7"/>
-                <ComboBoxItem Content="8"/>
+                <ComboBox.Items>
+                    <system:Int32>5</system:Int32>
+                    <system:Int32>6</system:Int32>
+                    <system:Int32>7</system:Int32>
+                    <system:Int32>8</system:Int32>
+                </ComboBox.Items>
             </ComboBox>
         </Grid>
         

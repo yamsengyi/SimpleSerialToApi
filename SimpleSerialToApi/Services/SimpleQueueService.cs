@@ -57,6 +57,18 @@ namespace SimpleSerialToApi.Services
         public bool IsEmpty => _queue.IsEmpty;
 
         /// <summary>
+        /// 큐의 모든 데이터를 삭제
+        /// </summary>
+        public void ClearQueue()
+        {
+            // ConcurrentQueue는 Clear 메서드가 없으므로 모든 데이터를 빼내어 삭제
+            while (_queue.TryDequeue(out _))
+            {
+                // 모든 항목을 제거
+            }
+        }
+
+        /// <summary>
         /// STX/ETX 기반으로 완전한 메시지 파싱
         /// </summary>
         public void ParseAndEnqueue(byte[] rawData)
