@@ -99,6 +99,7 @@ namespace SimpleSerialToApi.ViewModels
             DeleteMappingScenarioCommand = new RelayCommand(DeleteMappingScenario);
             TestMappingCommand = new RelayCommand(TestMapping);
             SaveMappingCommand = new RelayCommand(SaveMapping);
+            ShowReservedWordsCommand = new RelayCommand(ShowReservedWords);
             ApplyCommand = new RelayCommand(ApplyDataMapping);
             CancelCommand = new RelayCommand(CancelDataMapping);
             ToggleSerialMonitorCommand = new RelayCommand(ToggleSerialMonitor);
@@ -397,6 +398,7 @@ namespace SimpleSerialToApi.ViewModels
         public ICommand DeleteMappingScenarioCommand { get; }
         public ICommand TestMappingCommand { get; }
         public ICommand SaveMappingCommand { get; }
+        public ICommand ShowReservedWordsCommand { get; }
         public ICommand ApplyCommand { get; }
         public ICommand CancelCommand { get; }
         
@@ -594,7 +596,7 @@ namespace SimpleSerialToApi.ViewModels
                 var apiData = new MappedApiData
                 {
                     EndpointName = "default", // 기본 엔드포인트 사용
-                    ApiEndpoint = scenario.ApiEndpoint ?? "/", // 시나리오의 API 엔드포인트 사용
+                    ApiEndpoint = GetApiEndpointForScenario(scenario, result.ProcessedData), // FullPath 지원
                     ApiMethod = scenario.ApiMethod ?? "POST", // 시나리오의 HTTP 메서드 사용
                     ContentType = scenario.ContentType ?? "application/json", // 시나리오의 ContentType 사용
                     Payload = new Dictionary<string, object> { { "data", result.ProcessedData } }, // 처리된 데이터를 그대로 사용
@@ -1132,7 +1134,9 @@ namespace SimpleSerialToApi.ViewModels
                     ValueTemplate = "@deviceId|@yyyyMMddHHmmss|{data}",
                     TransmissionType = TransmissionType.Api,
                     ApiMethod = "POST",
-                    ApiEndpoint = "/data"
+                    ApiEndpoint = "/data",
+                    UseFullPath = false,
+                    FullPathTemplate = "http://diveinto.space:54321/api/qr_bypasser.aspx?dn=@deviceId&br={data}"
                 };
 
                 MappingScenarios.Add(newScenario);
@@ -1417,7 +1421,7 @@ namespace SimpleSerialToApi.ViewModels
             try
             {
                 var window = new Views.DataMappingWindow(this);
-                window.ShowDialog();
+                window.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
                 OnPropertyChanged(nameof(MappingScenariosCount));
                 Status = "Data mapping window opened";
                 _logger.LogInformation("Data mapping window opened");
@@ -1426,6 +1430,64 @@ namespace SimpleSerialToApi.ViewModels
             {
                 Status = "Error opening data mapping window";
                 _logger.LogError(ex, "Error opening data mapping window");
+            }
+        }
+
+        /// <summary>
+        /// Shows the reserved words information window
+        /// </summary>
+        private void ShowReservedWords()
+        {
+            try
+            {
+                var window = new Views.ReservedWordsWindow();
+                window.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
+                Status = "Reserved words window shown";
+                _logger.LogInformation("Reserved words window shown");
+            }
+            catch (Exception ex)
+            {
+                Status = "Error showing reserved words window";
+                _logger.LogError(ex, "Error showing reserved words window");
+            }
+        }
+
+        /// <summary>
+        /// Gets the API endpoint for a scenario, supporting FullPath with reserved word replacement
+        /// </summary>
+        /// <param name="scenario">Data mapping scenario</param>
+        /// <param name="data">Data to substitute in templates</param>
+        /// <returns>Final API endpoint URL</returns>
+        private string GetApiEndpointForScenario(DataMappingScenario scenario, string data)
+        {
+            try
+            {
+                if (scenario.UseFullPath && !string.IsNullOrEmpty(scenario.FullPathTemplate))
+                {
+                    // Use FullPath template with reserved word replacement
+                    var finalUrl = scenario.FullPathTemplate;
+                    
+                    // First replace reserved words
+                    finalUrl = _reservedWordService.ProcessReservedWords(finalUrl);
+                    
+                    // Then replace {data} placeholder
+                    finalUrl = finalUrl.Replace("{data}", data);
+                    
+                    _logger.LogDebug("Built full path URL for scenario '{ScenarioName}': {Template} -> {FinalUrl}", 
+                        scenario.Name, scenario.FullPathTemplate, finalUrl);
+                    
+                    return finalUrl;
+                }
+                else
+                {
+                    // Use standard API endpoint
+                    return scenario.ApiEndpoint ?? "/";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building API endpoint for scenario '{ScenarioName}'", scenario.Name);
+                return scenario.ApiEndpoint ?? "/"; // Fallback to original endpoint
             }
         }
 

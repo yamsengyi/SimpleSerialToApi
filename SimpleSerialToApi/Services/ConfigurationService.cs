@@ -13,8 +13,6 @@ namespace SimpleSerialToApi.Services
     public class ConfigurationService : IConfigurationService, IDisposable
     {
         private readonly ILogger<ConfigurationService> _logger;
-        private readonly FileSystemWatcher? _configWatcher;
-        private System.Configuration.Configuration? _configuration;
         private ApplicationConfig _applicationConfig;
         private readonly object _configLock = new object();
 
@@ -27,45 +25,9 @@ namespace SimpleSerialToApi.Services
             
             LoadConfiguration();
             
-            // Setup file system watcher for hot reload
-            try
-            {
-                // In .NET Core/.NET 5+, look for config file in the application directory
-                var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-                var configFilePath = Path.Combine(baseDirectory, "App.config");
-                
-                // Also try looking for the executable config file
-                if (!File.Exists(configFilePath))
-                {
-                    var exePath = System.Reflection.Assembly.GetEntryAssembly()?.Location;
-                    if (!string.IsNullOrEmpty(exePath))
-                    {
-                        configFilePath = exePath + ".config";
-                    }
-                }
-                
-                if (File.Exists(configFilePath))
-                {
-                    var directory = Path.GetDirectoryName(configFilePath);
-                    var fileName = Path.GetFileName(configFilePath);
-                    
-                    if (!string.IsNullOrEmpty(directory))
-                    {
-                        _configWatcher = new FileSystemWatcher(directory, fileName)
-                        {
-                            EnableRaisingEvents = true,
-                            NotifyFilter = NotifyFilters.LastWrite
-                        };
-                        
-                        _configWatcher.Changed += OnConfigFileChanged;
-                        _logger.LogInformation("Configuration file watcher initialized for {ConfigFile}", configFilePath);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not initialize configuration file watcher");
-            }
+            // 파일 시스템 와처를 제거하여 파일 잠금 문제를 방지
+            // 설정 변경은 명시적인 ReloadConfiguration() 호출로만 처리
+            _logger.LogInformation("Configuration service initialized without file watcher to prevent file locking issues");
         }
 
         public ApplicationConfig ApplicationConfig => _applicationConfig;
@@ -78,11 +40,14 @@ namespace SimpleSerialToApi.Services
 
         public T GetSection<T>(string sectionName) where T : class, new()
         {
+            System.Configuration.Configuration? tempConfig = null;
             try
             {
                 lock (_configLock)
                 {
-                    var section = _configuration?.GetSection(sectionName) as T;
+                    // 설정 파일을 일시적으로 열고 섹션을 읽은 후 즉시 닫기
+                    tempConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+                    var section = tempConfig?.GetSection(sectionName) as T;
                     return section ?? new T();
                 }
             }
@@ -90,6 +55,13 @@ namespace SimpleSerialToApi.Services
             {
                 _logger.LogError(ex, "Error getting configuration section {SectionName}", sectionName);
                 return new T();
+            }
+            finally
+            {
+                // 설정 파일 참조를 즉시 해제
+                tempConfig = null;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
             }
         }
 
@@ -256,9 +228,11 @@ namespace SimpleSerialToApi.Services
 
         private void LoadConfiguration()
         {
+            System.Configuration.Configuration? tempConfig = null;
             try
             {
-                _configuration = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+                // 설정 파일을 일시적으로 열고 즉시 처리
+                tempConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
                 
                 // Load application configuration
                 _applicationConfig = new ApplicationConfig();
@@ -283,6 +257,14 @@ namespace SimpleSerialToApi.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error loading configuration");
+            }
+            finally
+            {
+                // 설정 파일 참조를 즉시 해제
+                tempConfig = null;
+                // 가비지 컬렉션을 통해 파일 핸들 정리
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
             }
         }
 
@@ -401,22 +383,26 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         public void SaveSerialSettings(SerialConnectionSettings settings)
         {
+            System.Configuration.Configuration? tempConfig = null;
             try
             {
                 lock (_configLock)
                 {
-                    if (_configuration != null)
+                    // 설정 파일을 일시적으로 열어서 변경 후 즉시 저장하고 닫기
+                    tempConfig = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+                    
+                    if (tempConfig != null)
                     {
-                        SetAppSetting("SerialPort", settings.PortName);
-                        SetAppSetting("BaudRate", settings.BaudRate.ToString());
-                        SetAppSetting("Parity", settings.Parity.ToString());
-                        SetAppSetting("DataBits", settings.DataBits.ToString());
-                        SetAppSetting("StopBits", settings.StopBits.ToString());
-                        SetAppSetting("Handshake", settings.Handshake.ToString());
-                        SetAppSetting("ReadTimeout", settings.ReadTimeout.ToString());
-                        SetAppSetting("WriteTimeout", settings.WriteTimeout.ToString());
+                        SetAppSettingInConfig(tempConfig, "SerialPort", settings.PortName);
+                        SetAppSettingInConfig(tempConfig, "BaudRate", settings.BaudRate.ToString());
+                        SetAppSettingInConfig(tempConfig, "Parity", settings.Parity.ToString());
+                        SetAppSettingInConfig(tempConfig, "DataBits", settings.DataBits.ToString());
+                        SetAppSettingInConfig(tempConfig, "StopBits", settings.StopBits.ToString());
+                        SetAppSettingInConfig(tempConfig, "Handshake", settings.Handshake.ToString());
+                        SetAppSettingInConfig(tempConfig, "ReadTimeout", settings.ReadTimeout.ToString());
+                        SetAppSettingInConfig(tempConfig, "WriteTimeout", settings.WriteTimeout.ToString());
 
-                        _configuration.Save(ConfigurationSaveMode.Modified);
+                        tempConfig.Save(ConfigurationSaveMode.Modified);
                         ConfigurationManager.RefreshSection("appSettings");
 
                         // Update local settings
@@ -438,43 +424,44 @@ namespace SimpleSerialToApi.Services
                 _logger.LogError(ex, "Error saving serial settings");
                 throw;
             }
+            finally
+            {
+                // 설정 파일 참조를 즉시 해제
+                tempConfig = null;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
         }
 
         /// <summary>
-        /// Set an application setting value
+        /// Set an application setting value in a specific configuration instance
         /// </summary>
-        private void SetAppSetting(string key, string value)
+        private void SetAppSettingInConfig(System.Configuration.Configuration config, string key, string value)
         {
-            if (_configuration?.AppSettings.Settings[key] != null)
+            if (config.AppSettings.Settings[key] != null)
             {
-                _configuration.AppSettings.Settings[key].Value = value;
+                config.AppSettings.Settings[key].Value = value;
             }
             else
             {
-                _configuration?.AppSettings.Settings.Add(key, value);
+                config.AppSettings.Settings.Add(key, value);
             }
         }
 
-        private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
+        /// <summary>
+        /// Set an application setting value (deprecated - use SetAppSettingInConfig with temporary config)
+        /// </summary>
+        private void SetAppSetting(string key, string value)
         {
-            // Debounce rapid file changes
-            Task.Delay(500).ContinueWith(_ =>
-            {
-                try
-                {
-                    _logger.LogInformation("Configuration file changed, reloading...");
-                    ReloadConfiguration();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error handling configuration file change");
-                }
-            });
+            // 이 메서드는 더 이상 사용되지 않으므로 빈 구현으로 유지
+            // 대신 SetAppSettingInConfig를 사용하여 임시 설정 객체로 작업
+            _logger.LogWarning("SetAppSetting called but deprecated. Use SetAppSettingInConfig instead.");
         }
 
         public void Dispose()
         {
-            _configWatcher?.Dispose();
+            // 파일 와처가 제거되었으므로 정리할 리소스가 없음
+            // 필요시 다른 리소스 정리 코드 추가
         }
     }
 }

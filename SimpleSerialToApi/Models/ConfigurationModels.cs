@@ -14,6 +14,18 @@ namespace SimpleSerialToApi.Models
         public int RetryAttempts { get; set; } = 3;
         public string ContentType { get; set; } = "application/json";
         public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
+        
+        /// <summary>
+        /// Indicates whether to use the full URL path with query parameters and reserved word replacement
+        /// Example: http://diveinto.space:54321/api/qr_bypasser.aspx?dn=@deviceId&br={data}
+        /// </summary>
+        public bool UseFullPath { get; set; } = false;
+        
+        /// <summary>
+        /// Full URL template with reserved words that will be replaced before URL encoding
+        /// Reserved words: @deviceId, @yyyyMMddHHmmssfff, @yyyyMMddHHmmss, @yyyyMMdd, {data}
+        /// </summary>
+        public string FullPathTemplate { get; set; } = string.Empty;
     }
 
     /// <summary>

@@ -40,6 +40,8 @@ namespace SimpleSerialToApi.Models
         private string _authToken = string.Empty;
         private int _timeoutSeconds = 30;
         private int _retryCount = 3;
+        private bool _useFullPath = false;
+        private string _fullPathTemplate = string.Empty;
 
         public bool IsEnabled
         {
@@ -117,6 +119,25 @@ namespace SimpleSerialToApi.Models
         {
             get => _retryCount;
             set { _retryCount = value; OnPropertyChanged(nameof(RetryCount)); }
+        }
+
+        /// <summary>
+        /// Indicates whether to use full path template with reserved words
+        /// </summary>
+        public bool UseFullPath
+        {
+            get => _useFullPath;
+            set { _useFullPath = value; OnPropertyChanged(nameof(UseFullPath)); }
+        }
+
+        /// <summary>
+        /// Full URL template with reserved words (e.g., http://example.com/api?dn=@deviceId&data={data})
+        /// Reserved words will be replaced before URL encoding
+        /// </summary>
+        public string FullPathTemplate
+        {
+            get => _fullPathTemplate;
+            set { _fullPathTemplate = value; OnPropertyChanged(nameof(FullPathTemplate)); }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

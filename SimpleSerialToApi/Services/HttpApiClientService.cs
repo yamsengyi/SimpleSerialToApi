@@ -22,6 +22,7 @@ namespace SimpleSerialToApi.Services
         private readonly ILogger<HttpApiClientService> _logger;
         private readonly ApiMonitorService _apiMonitorService;
         private readonly ApiFileLogService _apiFileLogService;
+        private readonly ReservedWordService _reservedWordService;
         private readonly Dictionary<string, IApiAuthenticator> _authenticators;
 
         public HttpApiClientService(
@@ -30,6 +31,7 @@ namespace SimpleSerialToApi.Services
             ILogger<HttpApiClientService> logger,
             ApiMonitorService apiMonitorService,
             ApiFileLogService apiFileLogService,
+            ReservedWordService reservedWordService,
             IEnumerable<IApiAuthenticator> authenticators)
         {
             _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
@@ -37,6 +39,7 @@ namespace SimpleSerialToApi.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _apiMonitorService = apiMonitorService ?? throw new ArgumentNullException(nameof(apiMonitorService));
             _apiFileLogService = apiFileLogService ?? throw new ArgumentNullException(nameof(apiFileLogService));
+            _reservedWordService = reservedWordService ?? throw new ArgumentNullException(nameof(reservedWordService));
 
             _authenticators = new Dictionary<string, IApiAuthenticator>();
             foreach (var auth in authenticators ?? Enumerable.Empty<IApiAuthenticator>())
@@ -158,8 +161,24 @@ namespace SimpleSerialToApi.Services
                 // Get HTTP client
                 var httpClient = _clientFactory.GetClient(endpointName);
 
-                // Build request URL
-                var url = BuildRequestUrl(endpointConfig.Url, queryParams);
+                // Build request URL with reserved word processing and optional data substitution
+                string url;
+                if (endpointConfig.UseFullPath && !string.IsNullOrEmpty(endpointConfig.FullPathTemplate))
+                {
+                    // Use FullPath template with reserved word replacement
+                    url = BuildFinalUrl(endpointConfig, data);
+                    
+                    // Don't add query parameters when using FullPath (they should be in the template)
+                    if (queryParams != null && queryParams.Count > 0)
+                    {
+                        _logger.LogWarning("Query parameters ignored when using FullPath template for endpoint {EndpointName}", endpointName);
+                    }
+                }
+                else
+                {
+                    // Use standard URL building with query parameters
+                    url = BuildRequestUrl(endpointConfig.Url, queryParams);
+                }
 
                 // Create HTTP request
                 var request = new HttpRequestMessage(method, url);
@@ -300,6 +319,52 @@ namespace SimpleSerialToApi.Services
 
             var separator = baseUrl.Contains('?') ? "&" : "?";
             return $"{baseUrl}{separator}{queryString}";
+        }
+
+        /// <summary>
+        /// Builds the final URL with reserved word replacement and optional data substitution
+        /// </summary>
+        /// <param name="endpointConfig">API endpoint configuration</param>
+        /// <param name="data">Optional data to substitute {data} placeholder</param>
+        /// <returns>Final URL with all replacements applied</returns>
+        private string BuildFinalUrl(ApiEndpointConfig endpointConfig, object? data = null)
+        {
+            try
+            {
+                string finalUrl;
+                
+                if (endpointConfig.UseFullPath && !string.IsNullOrEmpty(endpointConfig.FullPathTemplate))
+                {
+                    // Use FullPathTemplate with reserved word replacement
+                    finalUrl = endpointConfig.FullPathTemplate;
+                    
+                    // First replace reserved words
+                    finalUrl = _reservedWordService.ProcessReservedWords(finalUrl);
+                    
+                    // Then replace {data} placeholder if data is provided
+                    if (data != null)
+                    {
+                        var dataString = data is string str ? str : JsonConvert.SerializeObject(data);
+                        finalUrl = finalUrl.Replace("{data}", dataString);
+                    }
+                    
+                    _logger.LogDebug("Built full path URL: {Template} -> {FinalUrl}", 
+                        endpointConfig.FullPathTemplate, finalUrl);
+                }
+                else
+                {
+                    // Use standard URL building
+                    finalUrl = endpointConfig.Url;
+                    _logger.LogDebug("Using standard URL: {Url}", finalUrl);
+                }
+                
+                return finalUrl;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building final URL for endpoint {EndpointName}", endpointConfig.Name);
+                return endpointConfig.Url; // Fallback to original URL
+            }
         }
 
         private async Task ApplyAuthenticationAsync(HttpRequestMessage request, ApiEndpointConfig endpointConfig)
