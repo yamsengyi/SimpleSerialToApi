@@ -139,10 +139,31 @@ namespace SimpleSerialToApi
 
         protected override void OnExit(ExitEventArgs e)
         {
-            _trayIconService?.Dispose();
-            _serviceProvider?.Dispose();
-            Log.CloseAndFlush();
-            base.OnExit(e);
+            try
+            {
+                Log.Information("Application shutting down...");
+
+                // MainViewModel Dispose (through ServiceProvider)
+                var mainViewModel = _serviceProvider?.GetService<MainViewModel>();
+                mainViewModel?.Dispose();
+
+                // 트레이 아이콘 정리
+                _trayIconService?.Dispose();
+
+                // 서비스 컨테이너 정리
+                _serviceProvider?.Dispose();
+
+                Log.Information("Application shutdown complete");
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error during application shutdown");
+            }
+            finally
+            {
+                Log.CloseAndFlush();
+                base.OnExit(e);
+            }
         }
     }
 }

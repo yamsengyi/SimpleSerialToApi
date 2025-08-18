@@ -87,18 +87,22 @@
         </GroupBox>
 
         <!-- API Configuration -->
-        <GroupBox Grid.Row="1" Header="API Settings" Margin="0,0,0,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <Label Grid.Column="0" Content="API URL:" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1" Text="{Binding ApiUrl}" Margin="5,0" VerticalAlignment="Center"/>
-                <Button Grid.Column="2" Content="Test" Command="{Binding TestApiCommand}" Margin="5,0" Padding="10,5"/>
-            </Grid>
+        <GroupBox Grid.Row="1" Header="API Settings (Connection Test Only)" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="※ This URL is for connection testing only. Actual data transmission uses URLs from mapping table." 
+                          FontStyle="Italic" Foreground="Gray" Margin="0,0,0,5"/>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <Label Grid.Column="0" Content="Test API URL:" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" Text="{Binding ApiUrl}" Margin="5,0" VerticalAlignment="Center"/>
+                    <Button Grid.Column="2" Content="Test" Command="{Binding TestApiCommand}" Margin="5,0" Padding="10,5"/>
+                </Grid>
+            </StackPanel>
         </GroupBox>
 
         <!-- Status -->

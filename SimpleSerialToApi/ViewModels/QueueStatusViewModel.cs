@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 
 namespace SimpleSerialToApi.ViewModels
 {
-    public class QueueStatusViewModel : ViewModelBase
+    public class QueueStatusViewModel : ViewModelBase, IDisposable
     {
         private readonly ILogger<QueueStatusViewModel> _logger;
         private readonly IMessenger _messenger;
+        private System.Timers.Timer? _monitoringTimer;
 
         private int _currentQueueSize = 0;
         private int _maxQueueSize = 1000;
@@ -115,10 +116,10 @@ namespace SimpleSerialToApi.ViewModels
         private void StartMonitoring()
         {
             // Start a timer to simulate queue activity
-            var timer = new System.Timers.Timer(2000); // Update every 2 seconds
-            timer.Elapsed += OnMonitoringTick;
-            timer.AutoReset = true;
-            timer.Enabled = true;
+            _monitoringTimer = new System.Timers.Timer(2000); // Update every 2 seconds
+            _monitoringTimer.Elapsed += OnMonitoringTick;
+            _monitoringTimer.AutoReset = true;
+            _monitoringTimer.Enabled = true;
         }
 
         private void OnMonitoringTick(object? sender, System.Timers.ElapsedEventArgs e)
@@ -258,7 +259,14 @@ namespace SimpleSerialToApi.ViewModels
         {
             if (disposing)
             {
-                // Clean up timer if stored as field
+                // Clean up timer
+                if (_monitoringTimer != null)
+                {
+                    _monitoringTimer.Stop();
+                    _monitoringTimer.Elapsed -= OnMonitoringTick;
+                    _monitoringTimer.Dispose();
+                    _monitoringTimer = null;
+                }
             }
             base.Dispose(disposing);
         }

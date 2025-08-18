@@ -30,7 +30,7 @@ namespace SimpleSerialToApi.Views
 
         private void OnCloseRequested(object? sender, bool saved)
         {
-            DialogResult = saved;
+            // 비모달 창에서는 DialogResult를 설정할 수 없으므로 바로 닫기
             Close();
         }
 

@@ -15,6 +15,9 @@ namespace SimpleSerialToApi
             {
                 InitializeComponent();
                 
+                // MainWindow Closing 이벤트 핸들러 추가
+                this.Closing += MainWindow_Closing;
+                
                 // Simple DataContext setup
                 var app = (App)System.Windows.Application.Current;
                 if (app?.ServiceProvider != null)
@@ -28,6 +31,22 @@ namespace SimpleSerialToApi
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show($"MainWindow initialization failed: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            try
+            {
+                // MainViewModel에 모든 자식 창 닫기 요청
+                if (DataContext is MainViewModel viewModel)
+                {
+                    viewModel.CloseAllChildWindows();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error closing child windows: {ex.Message}");
             }
         }
 

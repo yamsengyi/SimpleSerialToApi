@@ -12,7 +12,7 @@ using SimpleSerialToApi.Interfaces;
 
 namespace SimpleSerialToApi.ViewModels
 {
-    public class MainViewModel : INotifyPropertyChanged
+    public class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         private readonly ILogger<MainViewModel> _logger;
         private readonly SerialCommunicationService _serialService;
@@ -30,7 +30,7 @@ namespace SimpleSerialToApi.ViewModels
         private readonly IQueueProcessor<MappedApiData> _apiDataQueueProcessor;
 
         private string _serialPort = "COM1";
-        private string _apiUrl = "http://localhost:8080/api/data";
+        private string _apiUrl = "http://localhost:8080/api/data"; // 연결 테스트 전용 URL
         private bool _isConnected = false;
         private bool _isTimerRunning = false;
         private int _queueCount = 0;
@@ -51,6 +51,15 @@ namespace SimpleSerialToApi.ViewModels
         // 시뮬레이션 관련 필드
         private bool _isSimulating = false;
         private string _simulationInterval = "3";
+        
+        // 창 인스턴스 추적 필드
+        private Views.DataMappingWindow? _dataMappingWindow;
+        private Views.ReservedWordsWindow? _reservedWordsWindow;
+        private Views.SerialMonitorWindow? _serialMonitorWindow;
+        private Views.ApiMonitorWindow? _apiMonitorWindow;
+        
+        // 백그라운드 작업 관리
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         public MainViewModel(
             ILogger<MainViewModel> logger,
@@ -157,10 +166,10 @@ namespace SimpleSerialToApi.ViewModels
             UpdateQueueCount();
             
             // 큐 매니저 초기화 및 API 데이터 처리 시작 (조건부)
-            _ = Task.Run(async () => await InitializeQueueProcessingConditional());
+            _ = Task.Run(async () => await InitializeQueueProcessingConditional(), _cancellationTokenSource.Token);
             
             // 자동 연결 확인
-            _ = Task.Run(CheckAutoConnect);
+            _ = Task.Run(CheckAutoConnect, _cancellationTokenSource.Token);
         }
 
         // Properties
@@ -181,6 +190,10 @@ namespace SimpleSerialToApi.ViewModels
             }
         }
 
+        /// <summary>
+        /// API URL for connection testing only (not used for actual data transmission)
+        /// 연결 테스트 전용 API URL (실제 데이터 전송에는 매핑 테이블의 URL 사용)
+        /// </summary>
         public string ApiUrl
         {
             get => _apiUrl;
@@ -497,13 +510,17 @@ namespace SimpleSerialToApi.ViewModels
             _logger.LogInformation("Timer stopped automatically on disconnection");
         }
 
+        /// <summary>
+        /// Tests API connection using the test URL (not the mapping table URLs)
+        /// 테스트 URL을 사용한 API 연결 테스트 (매핑 테이블 URL과 무관)
+        /// </summary>
         private async void TestApi()
         {
             try
             {
                 Status = "Testing API...";
                 
-                // API 테스트 요청 로그
+                // API 테스트 요청 로그 (테스트 전용 URL 사용)
                 var requestId = _apiMonitorService.LogApiRequest("GET", _apiUrl, "API Connection Test");
                 
                 var success = await _httpService.TestConnectionAsync();
@@ -654,19 +671,22 @@ namespace SimpleSerialToApi.ViewModels
                 // API 모니터에 요청 시작 로그
                 var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod, result.ApiEndpoint, result.ProcessedData);
 
-                // API 호출 - 시나리오별 설정 적용
-                var apiUrl = string.IsNullOrEmpty(scenario.ApiEndpoint) ? _apiUrl : scenario.ApiEndpoint;
+                // 매핑 테이블의 설정을 우선 사용하여 API URL 결정 (FullPath 지원)
+                var apiUrl = GetApiEndpointForScenario(scenario, result.ProcessedData);
                 
                 // HTTP 서비스에 임시 URL 설정
                 var originalUrl = _apiUrl;
                 _httpService.SetApiUrl(apiUrl);
+                
+                _logger.LogInformation("Sending data to API endpoint: {ApiUrl} (Scenario: {ScenarioName})", 
+                    apiUrl, scenario.Name);
                 
                 // API 호출 수행 (JSON 형태로 전송)
                 var startTime = DateTime.Now;
                 bool success = await _httpService.SendJsonAsync(result.ProcessedData);
                 var responseTime = (long)(DateTime.Now - startTime).TotalMilliseconds;
                 
-                // 원래 URL 복원
+                // 원래 URL 복원 (테스트용 URL로 복원)
                 _httpService.SetApiUrl(originalUrl);
                 
                 // API 모니터에 결과 로그
@@ -975,13 +995,14 @@ namespace SimpleSerialToApi.ViewModels
         }
 
         /// <summary>
-        /// Loads API URL from configuration
+        /// Loads API URL from configuration (for connection testing only)
+        /// 설정에서 연결 테스트용 API URL 로드
         /// </summary>
         private void LoadApiUrl()
         {
             try
             {
-                // 1. ConfigurationService의 API endpoints에서 default 또는 첫 번째 엔드포인트 가져오기
+                // 1. ConfigurationService의 API endpoints에서 default 또는 첫 번째 엔드포인트 가져오기 (테스트 용도)
                 var config = _configurationService.ApplicationConfig;
                 if (config.ApiEndpoints != null && config.ApiEndpoints.Any())
                 {
@@ -989,7 +1010,7 @@ namespace SimpleSerialToApi.ViewModels
                                         ?? config.ApiEndpoints.First();
                     
                     _apiUrl = defaultEndpoint.Url;
-                    _logger.LogInformation("API URL loaded from configuration: {ApiUrl}", _apiUrl);
+                    _logger.LogInformation("Test API URL loaded from configuration: {ApiUrl}", _apiUrl);
                     return;
                 }
 
@@ -1420,8 +1441,45 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                var window = new Views.DataMappingWindow(this);
-                window.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
+                // 이미 열려있는 창이 있는지 확인 (null이 아니고 닫히지 않은 상태)
+                if (_dataMappingWindow != null)
+                {
+                    try
+                    {
+                        // 창이 실제로 사용 가능한지 확인
+                        if (_dataMappingWindow.IsVisible)
+                        {
+                            // 기존 창을 활성화하고 포커스 설정
+                            _dataMappingWindow.Activate();
+                            _dataMappingWindow.Focus();
+                            Status = "Data mapping window focused";
+                            _logger.LogInformation("Data mapping window focused (already open)");
+                            return;
+                        }
+                        else
+                        {
+                            // 창이 존재하지만 보이지 않는 경우 (닫힌 상태) - 참조 정리
+                            _dataMappingWindow = null;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // 창 객체가 이미 해제된 경우 - 참조 정리
+                        _dataMappingWindow = null;
+                    }
+                }
+
+                // 새 창 생성
+                _dataMappingWindow = new Views.DataMappingWindow(this);
+                
+                // 창이 닫힐 때 참조를 null로 설정
+                _dataMappingWindow.Closed += (sender, e) => 
+                {
+                    _dataMappingWindow = null;
+                    _logger.LogInformation("Data mapping window closed, reference cleared");
+                };
+                
+                _dataMappingWindow.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
                 OnPropertyChanged(nameof(MappingScenariosCount));
                 Status = "Data mapping window opened";
                 _logger.LogInformation("Data mapping window opened");
@@ -1440,8 +1498,45 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                var window = new Views.ReservedWordsWindow();
-                window.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
+                // 이미 열려있는 창이 있는지 확인 (null이 아니고 닫히지 않은 상태)
+                if (_reservedWordsWindow != null)
+                {
+                    try
+                    {
+                        // 창이 실제로 사용 가능한지 확인
+                        if (_reservedWordsWindow.IsVisible)
+                        {
+                            // 기존 창을 활성화하고 포커스 설정
+                            _reservedWordsWindow.Activate();
+                            _reservedWordsWindow.Focus();
+                            Status = "Reserved words window focused";
+                            _logger.LogInformation("Reserved words window focused (already open)");
+                            return;
+                        }
+                        else
+                        {
+                            // 창이 존재하지만 보이지 않는 경우 (닫힌 상태) - 참조 정리
+                            _reservedWordsWindow = null;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // 창 객체가 이미 해제된 경우 - 참조 정리
+                        _reservedWordsWindow = null;
+                    }
+                }
+
+                // 새 창 생성
+                _reservedWordsWindow = new Views.ReservedWordsWindow();
+                
+                // 창이 닫힐 때 참조를 null로 설정
+                _reservedWordsWindow.Closed += (sender, e) => 
+                {
+                    _reservedWordsWindow = null;
+                    _logger.LogInformation("Reserved words window closed, reference cleared");
+                };
+                
+                _reservedWordsWindow.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
                 Status = "Reserved words window shown";
                 _logger.LogInformation("Reserved words window shown");
             }
@@ -1498,11 +1593,48 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
+                // 이미 열려있는 창이 있는지 확인 (null이 아니고 닫히지 않은 상태)
+                if (_serialMonitorWindow != null)
+                {
+                    try
+                    {
+                        // 창이 실제로 사용 가능한지 확인
+                        if (_serialMonitorWindow.IsVisible)
+                        {
+                            // 기존 창을 활성화하고 포커스 설정
+                            _serialMonitorWindow.Activate();
+                            _serialMonitorWindow.Focus();
+                            Status = "Serial monitor window focused";
+                            _logger.LogInformation("Serial monitor window focused (already open)");
+                            return;
+                        }
+                        else
+                        {
+                            // 창이 존재하지만 보이지 않는 경우 (닫힌 상태) - 참조 정리
+                            _serialMonitorWindow = null;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // 창 객체가 이미 해제된 경우 - 참조 정리
+                        _serialMonitorWindow = null;
+                    }
+                }
+
                 // 기존 메시지들을 텍스트로 로드
                 LoadExistingSerialMessages();
                 
-                var window = new Views.SerialMonitorWindow(this);
-                window.Show();
+                // 새 창 생성
+                _serialMonitorWindow = new Views.SerialMonitorWindow(this);
+                
+                // 창이 닫힐 때 참조를 null로 설정
+                _serialMonitorWindow.Closed += (sender, e) => 
+                {
+                    _serialMonitorWindow = null;
+                    _logger.LogInformation("Serial monitor window closed, reference cleared");
+                };
+                
+                _serialMonitorWindow.Show();
                 Status = "Serial monitor window opened";
                 _logger.LogInformation("Serial monitor window opened");
             }
@@ -1520,11 +1652,48 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
+                // 이미 열려있는 창이 있는지 확인 (null이 아니고 닫히지 않은 상태)
+                if (_apiMonitorWindow != null)
+                {
+                    try
+                    {
+                        // 창이 실제로 사용 가능한지 확인
+                        if (_apiMonitorWindow.IsVisible)
+                        {
+                            // 기존 창을 활성화하고 포커스 설정
+                            _apiMonitorWindow.Activate();
+                            _apiMonitorWindow.Focus();
+                            Status = "API monitor window focused";
+                            _logger.LogInformation("API monitor window focused (already open)");
+                            return;
+                        }
+                        else
+                        {
+                            // 창이 존재하지만 보이지 않는 경우 (닫힌 상태) - 참조 정리
+                            _apiMonitorWindow = null;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // 창 객체가 이미 해제된 경우 - 참조 정리
+                        _apiMonitorWindow = null;
+                    }
+                }
+
                 // 기존 메시지들을 텍스트로 로드
                 LoadExistingApiMessages();
                 
-                var window = new Views.ApiMonitorWindow(this);
-                window.Show();
+                // 새 창 생성
+                _apiMonitorWindow = new Views.ApiMonitorWindow(this);
+                
+                // 창이 닫힐 때 참조를 null로 설정
+                _apiMonitorWindow.Closed += (sender, e) => 
+                {
+                    _apiMonitorWindow = null;
+                    _logger.LogInformation("API monitor window closed, reference cleared");
+                };
+                
+                _apiMonitorWindow.Show();
                 Status = "API monitor window opened";
                 _logger.LogInformation("API monitor window opened");
             }
@@ -1910,6 +2079,129 @@ namespace SimpleSerialToApi.ViewModels
         protected virtual void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        /// <summary>
+        /// 모든 자식 창들을 닫습니다
+        /// </summary>
+        public void CloseAllChildWindows()
+        {
+            try
+            {
+                _logger.LogInformation("Closing all child windows...");
+
+                // 데이터 매핑 창 닫기
+                if (_dataMappingWindow != null)
+                {
+                    try
+                    {
+                        _dataMappingWindow.Close();
+                        _dataMappingWindow = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error closing data mapping window");
+                        _dataMappingWindow = null;
+                    }
+                }
+
+                // 예약어 창 닫기
+                if (_reservedWordsWindow != null)
+                {
+                    try
+                    {
+                        _reservedWordsWindow.Close();
+                        _reservedWordsWindow = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error closing reserved words window");
+                        _reservedWordsWindow = null;
+                    }
+                }
+
+                // 시리얼 모니터 창 닫기
+                if (_serialMonitorWindow != null)
+                {
+                    try
+                    {
+                        _serialMonitorWindow.Close();
+                        _serialMonitorWindow = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error closing serial monitor window");
+                        _serialMonitorWindow = null;
+                    }
+                }
+
+                // API 모니터 창 닫기
+                if (_apiMonitorWindow != null)
+                {
+                    try
+                    {
+                        _apiMonitorWindow.Close();
+                        _apiMonitorWindow = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error closing API monitor window");
+                        _apiMonitorWindow = null;
+                    }
+                }
+
+                _logger.LogInformation("All child windows closed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during closing child windows");
+            }
+        }
+
+        // IDisposable Implementation
+        public void Dispose()
+        {
+            try
+            {
+                _logger.LogInformation("MainViewModel disposing...");
+
+                // 백그라운드 작업 취소
+                if (!_cancellationTokenSource.IsCancellationRequested)
+                {
+                    _cancellationTokenSource.Cancel();
+                }
+
+                // 타이머 서비스 정지
+                _timerService?.Stop();
+                _timerService?.Dispose();
+
+                // 시리얼 연결 해제
+                if (_serialService?.IsConnected == true)
+                {
+                    _ = Task.Run(async () => await _serialService.DisconnectAsync());
+                }
+
+                // 시뮬레이션 정지
+                if (_isSimulating)
+                {
+                    _serialDataSimulator?.Stop();
+                }
+
+                // 큐 매니저 정리
+                _queueManager?.Dispose();
+
+                // 열린 창들 닫기
+                CloseAllChildWindows();
+
+                // CancellationTokenSource 정리
+                _cancellationTokenSource.Dispose();
+
+                _logger.LogInformation("MainViewModel disposed successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error during MainViewModel disposal");
+            }
         }
     }
 }
