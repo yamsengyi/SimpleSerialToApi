@@ -1,5 +1,6 @@
 using SimpleSerialToApi.Interfaces;
 using SimpleSerialToApi.Models;
+using SimpleSerialToApi.Services;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -19,6 +20,7 @@ namespace SimpleSerialToApi.Services.Queues
     {
         private readonly HttpClient _httpClient;
         private readonly IConfigurationService _configurationService;
+        private readonly ReservedWordService _reservedWordService;
         private readonly ILogger<ApiDataQueueProcessor> _logger;
 
         /// <summary>
@@ -41,11 +43,17 @@ namespace SimpleSerialToApi.Services.Queues
         /// </summary>
         /// <param name="httpClient">HTTP client for API calls</param>
         /// <param name="configurationService">Configuration service</param>
+        /// <param name="reservedWordService">Reserved word service for URL template processing</param>
         /// <param name="logger">Logger instance</param>
-        public ApiDataQueueProcessor(HttpClient httpClient, IConfigurationService configurationService, ILogger<ApiDataQueueProcessor> logger)
+        public ApiDataQueueProcessor(
+            HttpClient httpClient, 
+            IConfigurationService configurationService, 
+            ReservedWordService reservedWordService,
+            ILogger<ApiDataQueueProcessor> logger)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
+            _reservedWordService = reservedWordService ?? throw new ArgumentNullException(nameof(reservedWordService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -87,7 +95,62 @@ namespace SimpleSerialToApi.Services.Queues
                 if (!string.IsNullOrEmpty(apiData.ApiEndpoint))
                 {
                     var apiEndpoint = apiData.ApiEndpoint.TrimStart('/');
-                    fullUrl = $"{fullUrl}/{apiEndpoint}";
+                    
+                    // Path가 완전한 URL인지 확인 (http:// 또는 https://로 시작)
+                    if (apiEndpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
+                        apiEndpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // FullPath가 완전한 URL인 경우 그대로 사용
+                        fullUrl = apiEndpoint;
+                    }
+                    else
+                    {
+                        // 상대 경로인 경우 기본 URL과 조합
+                        fullUrl = $"{fullUrl}/{apiEndpoint}";
+                    }
+                }
+
+                // 예약어 처리 - URL 인코딩 전에 먼저 처리
+                fullUrl = _reservedWordService.ProcessReservedWords(fullUrl);
+
+                // {data} 플레이스홀더 처리 - 여러 소스에서 데이터 찾기
+                if (fullUrl.Contains("{data}"))
+                {
+                    string? dataToUse = null;
+
+                    // 1. Payload["originalData"]에서 원본 데이터 찾기 (최우선)
+                    if (apiData.Payload != null && apiData.Payload.ContainsKey("originalData"))
+                    {
+                        var originalData = apiData.Payload["originalData"];
+                        dataToUse = originalData is string str ? str : JsonSerializer.Serialize(originalData);
+                    }
+                    // 2. OriginalParsedData에서 원본 데이터 찾기
+                    else if (apiData.OriginalParsedData?.OriginalData?.Data != null)
+                    {
+                        // 바이트 배열을 문자열로 변환
+                        dataToUse = System.Text.Encoding.UTF8.GetString(apiData.OriginalParsedData.OriginalData.Data);
+                    }
+                    // 3. Payload["data"]에서 데이터 찾기
+                    else if (apiData.Payload != null && apiData.Payload.ContainsKey("data"))
+                    {
+                        var dataValue = apiData.Payload["data"];
+                        dataToUse = dataValue is string str ? str : JsonSerializer.Serialize(dataValue);
+                    }
+                    // 4. Payload 전체를 JSON으로 사용 (최후)
+                    else if (apiData.Payload != null && apiData.Payload.Count > 0)
+                    {
+                        dataToUse = JsonSerializer.Serialize(apiData.Payload);
+                    }
+
+                    if (!string.IsNullOrEmpty(dataToUse))
+                    {
+                        fullUrl = fullUrl.Replace("{data}", dataToUse);
+                        _logger.LogInformation("Replaced {{data}} placeholder with: {DataValue}", dataToUse);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Could not find data for {{data}} placeholder replacement");
+                    }
                 }
                 requestMessage.RequestUri = new Uri(fullUrl);
 

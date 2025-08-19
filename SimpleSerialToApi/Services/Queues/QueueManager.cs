@@ -566,14 +566,41 @@ namespace SimpleSerialToApi.Services.Queues
         {
             if (!_disposed && disposing)
             {
-                // Stop all processing
-                var stopTasks = _processors.Keys.Select(StopProcessingAsync);
-                Task.WaitAll(stopTasks.ToArray(), TimeSpan.FromSeconds(30));
+                try
+                {
+                    // Stop all processing with shorter timeout
+                    var stopTasks = _processors.Keys.Select(StopProcessingAsync);
+                    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10));
+                    var completedTask = Task.WhenAny(Task.WhenAll(stopTasks), timeoutTask).Result;
+                    
+                    if (completedTask == timeoutTask)
+                    {
+                        // Timeout occurred, force cancellation
+                        foreach (var wrapper in _processors.Values)
+                        {
+                            wrapper.CancellationTokenSource?.Cancel();
+                        }
+                        // Give a little more time for cleanup
+                        Task.Delay(1000).Wait();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error but continue cleanup
+                    Console.WriteLine($"Error stopping processors during disposal: {ex.Message}");
+                }
 
                 // Dispose all queues
                 foreach (var queue in _queues.Values.OfType<IDisposable>())
                 {
-                    queue.Dispose();
+                    try
+                    {
+                        queue.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error disposing queue: {ex.Message}");
+                    }
                 }
 
                 _queues.Clear();

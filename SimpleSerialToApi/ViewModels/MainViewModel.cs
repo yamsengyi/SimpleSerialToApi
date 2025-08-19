@@ -616,12 +616,29 @@ namespace SimpleSerialToApi.ViewModels
                     ApiEndpoint = GetApiEndpointForScenario(scenario, result.ProcessedData), // FullPath 지원
                     ApiMethod = scenario.ApiMethod ?? "POST", // 시나리오의 HTTP 메서드 사용
                     ContentType = scenario.ContentType ?? "application/json", // 시나리오의 ContentType 사용
-                    Payload = new Dictionary<string, object> { { "data", result.ProcessedData } }, // 처리된 데이터를 그대로 사용
+                    Payload = new Dictionary<string, object> 
+                    { 
+                        { "data", result.ProcessedData },
+                        { "originalData", result.OriginalData } // 원본 데이터도 보존
+                    },
                     CreatedAt = DateTime.Now,
                     MessageId = Guid.NewGuid().ToString(),
                     Priority = 5,
                     RetryCount = 0,
-                    MaxRetries = 3
+                    MaxRetries = 3,
+                    // 원본 데이터 보존을 위한 ParsedData 생성
+                    OriginalParsedData = new ParsedData
+                    {
+                        DeviceId = "device001", // 기본 디바이스 ID
+                        DataSource = "serial",
+                        Timestamp = DateTime.Now,
+                        OriginalData = new RawSerialData(
+                            System.Text.Encoding.UTF8.GetBytes(result.OriginalData),
+                            "TEXT",
+                            "device001",
+                            "COM1"
+                        )
+                    }
                 };
 
                 // QueueMessage로 래핑
@@ -2175,10 +2192,18 @@ namespace SimpleSerialToApi.ViewModels
                 _timerService?.Stop();
                 _timerService?.Dispose();
 
-                // 시리얼 연결 해제
+                // 시리얼 연결 해제 - 동기적으로 완료 대기
                 if (_serialService?.IsConnected == true)
                 {
-                    _ = Task.Run(async () => await _serialService.DisconnectAsync());
+                    try
+                    {
+                        var disconnectTask = _serialService.DisconnectAsync();
+                        disconnectTask.Wait(TimeSpan.FromSeconds(5)); // 5초 타임아웃
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Error disconnecting serial service during disposal");
+                    }
                 }
 
                 // 시뮬레이션 정지
@@ -2187,14 +2212,25 @@ namespace SimpleSerialToApi.ViewModels
                     _serialDataSimulator?.Stop();
                 }
 
-                // 큐 매니저 정리
-                _queueManager?.Dispose();
+                // 큐 매니저 정리 - 더 짧은 타임아웃으로 강제 종료
+                try
+                {
+                    _queueManager?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Error disposing queue manager");
+                }
 
                 // 열린 창들 닫기
                 CloseAllChildWindows();
 
                 // CancellationTokenSource 정리
                 _cancellationTokenSource.Dispose();
+
+                // 강제 가비지 컬렉션
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
 
                 _logger.LogInformation("MainViewModel disposed successfully");
             }

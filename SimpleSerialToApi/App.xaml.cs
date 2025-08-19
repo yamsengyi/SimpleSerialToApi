@@ -40,6 +40,46 @@ namespace SimpleSerialToApi
 
                 Log.Information("Application starting... (StartMinimized: {StartMinimized})", _startMinimized);
 
+                // USB 시리얼 통신을 위한 관리자 권한 자동 시작 등록 (작업 스케줄러 사용)
+                try
+                {
+                    var startupService = new StartupService(Microsoft.Extensions.Logging.Abstractions.NullLogger<StartupService>.Instance);
+                    
+                    // 기존 레지스트리 방식 확인
+                    var currentRegistryCommand = startupService.GetStartupCommand();
+                    var isTaskSchedulerEnabled = startupService.IsStartupWithAdminEnabled();
+                    
+                    Log.Information("Startup status - Registry: {Registry}, TaskScheduler: {TaskScheduler}", 
+                        currentRegistryCommand ?? "Not set", isTaskSchedulerEnabled);
+                    
+                    if (!isTaskSchedulerEnabled)
+                    {
+                        Log.Information("Registering for admin startup via Task Scheduler for USB serial access...");
+                        var success = startupService.EnableStartupWithAdmin(true);
+                        Log.Information("Task Scheduler registration result: {Success}", success);
+                        
+                        if (success)
+                        {
+                            Log.Information("Successfully registered for admin startup via Task Scheduler");
+                        }
+                        else
+                        {
+                            Log.Warning("Task Scheduler registration failed, falling back to registry method");
+                            // Fallback to registry method if Task Scheduler fails
+                            var registrySuccess = startupService.EnableStartup(true);
+                            Log.Information("Registry fallback result: {Success}", registrySuccess);
+                        }
+                    }
+                    else
+                    {
+                        Log.Information("Application already registered for admin startup via Task Scheduler");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to check/register admin startup, continuing anyway");
+                }
+
                 // 서비스 컨테이너 설정
                 var services = new ServiceCollection();
                 ConfigureServices(services);
@@ -143,9 +183,16 @@ namespace SimpleSerialToApi
             {
                 Log.Information("Application shutting down...");
 
-                // MainViewModel Dispose (through ServiceProvider)
+                // MainViewModel Dispose (through ServiceProvider) with timeout
                 var mainViewModel = _serviceProvider?.GetService<MainViewModel>();
-                mainViewModel?.Dispose();
+                if (mainViewModel != null)
+                {
+                    var disposeTask = Task.Run(() => mainViewModel.Dispose());
+                    if (!disposeTask.Wait(TimeSpan.FromSeconds(10)))
+                    {
+                        Log.Warning("MainViewModel disposal timed out");
+                    }
+                }
 
                 // 트레이 아이콘 정리
                 _trayIconService?.Dispose();
@@ -153,11 +200,16 @@ namespace SimpleSerialToApi
                 // 서비스 컨테이너 정리
                 _serviceProvider?.Dispose();
 
+                // 강제 종료 처리
+                Environment.Exit(0);
+
                 Log.Information("Application shutdown complete");
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error during application shutdown");
+                // 강제 종료
+                Environment.Exit(1);
             }
             finally
             {
