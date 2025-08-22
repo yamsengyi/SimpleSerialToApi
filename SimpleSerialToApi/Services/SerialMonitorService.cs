@@ -190,7 +190,6 @@ namespace SimpleSerialToApi.Services
                 var lines = _messages.Select(m => m.FormattedMessage).ToList();
                 await File.WriteAllLinesAsync(filePath, lines);
                 
-                _logger.LogInformation("Serial monitor messages saved to: {FilePath}", filePath);
                 return true;
             }
             catch (Exception ex)

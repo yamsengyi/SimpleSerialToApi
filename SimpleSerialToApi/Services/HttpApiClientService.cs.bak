@@ -82,6 +82,7 @@ namespace SimpleSerialToApi.Services
                 TotalRequests = dataList.Count
             };
 
+            _logger.LogInformation("Starting batch POST to endpoint {EndpointName} with {Count} items", 
                 endpointName, dataList.Count);
 
             var tasks = dataList.Select(async data =>
@@ -107,6 +108,7 @@ namespace SimpleSerialToApi.Services
             batchResponse.Responses = (await Task.WhenAll(tasks)).ToList();
             batchResponse.TotalProcessingTime = stopwatch.Elapsed;
 
+            _logger.LogInformation("Completed batch POST to endpoint {EndpointName}: {Successful}/{Total} successful in {Duration}ms", 
                 endpointName, batchResponse.SuccessfulRequests, batchResponse.TotalRequests, batchResponse.TotalProcessingTime.TotalMilliseconds);
 
             return batchResponse;
@@ -125,6 +127,7 @@ namespace SimpleSerialToApi.Services
                 stopwatch.Stop();
 
                 // 연결이 되어 HTTP 응답을 받았다면 건강한 것으로 판단 (상태 코드에 관계없이)
+                _logger.LogInformation("Health check for {EndpointName}: {StatusCode} {ResponseTime}ms", 
                     endpointName, response.StatusCode, stopwatch.ElapsedMilliseconds);
                 
                 return HealthCheckResult.Healthy(endpointName, stopwatch.Elapsed, response.StatusCode);
@@ -195,6 +198,7 @@ namespace SimpleSerialToApi.Services
                     var contentType = endpointConfig.ContentType ?? "application/json";
                     request.Content = new StringContent(jsonContent, Encoding.UTF8, contentType);
                     
+                    _logger.LogInformation("Sending {Method} request to FULL PATH: {FullUrl} with payload: {Payload}, ContentType: {ContentType}, MessageId: {MessageId}", 
                         method, url, jsonContent, contentType, messageId);
                     
                     // 파일 로그: 요청 (with body)
@@ -202,6 +206,7 @@ namespace SimpleSerialToApi.Services
                 }
                 else
                 {
+                    _logger.LogInformation("Sending {Method} request to FULL PATH: {FullUrl}, MessageId: {MessageId}", method, url, messageId);
                     
                     // 파일 로그: 요청 (without body)
                     await _apiFileLogService.LogRequestAsync(messageId, method.Method, url, null, "");
