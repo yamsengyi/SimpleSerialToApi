@@ -168,7 +168,6 @@ namespace SimpleSerialToApi.Services
         public void Clear()
         {
             _messages.Clear();
-            _logger.LogInformation("Serial monitor messages cleared");
         }
 
         /// <summary>

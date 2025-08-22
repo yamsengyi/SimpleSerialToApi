@@ -49,7 +49,6 @@ namespace SimpleSerialToApi.Services
             var interval = TimeSpan.FromSeconds(intervalSeconds);
             
             _timer = new System.Threading.Timer(GenerateData, null, TimeSpan.Zero, interval);
-            _logger.LogInformation("Serial data simulator started with {Interval}s interval", intervalSeconds);
         }
 
         /// <summary>
@@ -66,7 +65,6 @@ namespace SimpleSerialToApi.Services
             _timer?.Dispose();
             _timer = null;
             _isRunning = false;
-            _logger.LogInformation("Serial data simulator stopped");
         }
 
         /// <summary>

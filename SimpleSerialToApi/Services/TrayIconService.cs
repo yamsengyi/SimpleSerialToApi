@@ -43,8 +43,6 @@ namespace SimpleSerialToApi.Services
             {
                 _mainWindow.StateChanged += MainWindow_StateChanged;
             }
-            
-            _logger.LogInformation("Main window set for tray icon service");
         }
 
         private void MainWindow_StateChanged(object? sender, EventArgs e)
@@ -66,7 +64,6 @@ namespace SimpleSerialToApi.Services
                 _mainWindow.ShowInTaskbar = true;
                 _mainWindow.Activate();
                 Hide();
-                _logger.LogInformation("Main window restored from tray");
             }
             else
             {
@@ -108,7 +105,6 @@ namespace SimpleSerialToApi.Services
                 // 더블클릭으로 창 보기
                 _notifyIcon.DoubleClick += (s, e) => OnShowMainWindow(s, e);
 
-                _logger.LogInformation("Tray icon initialized successfully");
             }
             catch (Exception ex)
             {
@@ -124,7 +120,6 @@ namespace SimpleSerialToApi.Services
             if (_notifyIcon != null)
             {
                 _notifyIcon.Visible = true;
-                _logger.LogInformation("Tray icon shown");
             }
         }
 
@@ -136,7 +131,6 @@ namespace SimpleSerialToApi.Services
             if (_notifyIcon != null)
             {
                 _notifyIcon.Visible = false;
-                _logger.LogInformation("Tray icon hidden");
             }
         }
 
@@ -203,7 +197,6 @@ namespace SimpleSerialToApi.Services
             {
                 _notifyIcon?.Dispose();
                 _disposed = true;
-                _logger.LogInformation("TrayIconService disposed");
             }
         }
     }
