@@ -171,7 +171,6 @@ namespace SimpleSerialToApi.ViewModels
         private void ExecuteStartProcessing()
         {
             IsProcessing = true;
-            _logger.LogInformation("Queue processing started");
             
             _messenger.Send(new LogMessage
             {
@@ -184,7 +183,6 @@ namespace SimpleSerialToApi.ViewModels
         private void ExecuteStopProcessing()
         {
             IsProcessing = false;
-            _logger.LogInformation("Queue processing stopped");
             
             _messenger.Send(new LogMessage
             {
@@ -198,8 +196,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             var clearedCount = CurrentQueueSize;
             CurrentQueueSize = 0;
-            
-            _logger.LogInformation("Queue cleared - {Count} messages removed", clearedCount);
             
             _messenger.Send(new LogMessage
             {
@@ -216,8 +212,6 @@ namespace SimpleSerialToApi.ViewModels
             ProcessingRate = 0;
             RetryCount = 0;
             LastProcessed = DateTime.MinValue;
-            
-            _logger.LogInformation("Queue statistics reset");
             
             _messenger.Send(new LogMessage
             {

@@ -56,7 +56,6 @@ namespace SimpleSerialToApi.Services
             }
 
             _scenarios.Add(scenario);
-            _logger.LogInformation("Added mapping scenario: {Name}", scenario.Name);
         }
 
         /// <summary>
@@ -66,10 +65,6 @@ namespace SimpleSerialToApi.Services
         public bool RemoveScenario(DataMappingScenario scenario)
         {
             var removed = _scenarios.Remove(scenario);
-            if (removed)
-            {
-                _logger.LogInformation("Removed mapping scenario: {Name}", scenario.Name);
-            }
             return removed;
         }
 
@@ -79,7 +74,6 @@ namespace SimpleSerialToApi.Services
         public void ClearScenarios()
         {
             _scenarios.Clear();
-            _logger.LogInformation("All mapping scenarios cleared");
         }
 
         /// <summary>
@@ -124,7 +118,6 @@ namespace SimpleSerialToApi.Services
                     }
                 }
 
-                _logger.LogInformation("Processed data resulted in {Count} matches", results.Count);
             }
             catch (Exception ex)
             {
@@ -193,9 +186,6 @@ namespace SimpleSerialToApi.Services
                     Timestamp = DateTime.Now
                 };
 
-                _logger.LogInformation("Successfully processed scenario '{Name}': '{Original}' -> '{Processed}'", 
-                    scenario.Name, data, processedValue);
-
                 return result;
             }
             catch (Exception ex)
@@ -244,7 +234,6 @@ namespace SimpleSerialToApi.Services
                 // 파일에서 시나리오 로드 시도
                 if (LoadScenariosFromFile())
                 {
-                    _logger.LogInformation("Loaded {Count} scenarios from file", _scenarios.Count);
                     return;
                 }
 
@@ -283,7 +272,6 @@ namespace SimpleSerialToApi.Services
                 // 기본 시나리오들을 파일에 저장
                 SaveScenariosToFile();
                 
-                _logger.LogInformation("Loaded {Count} default scenarios", defaultScenarios.Length);
             }
             catch (Exception ex)
             {
@@ -309,7 +297,6 @@ namespace SimpleSerialToApi.Services
                 var json = JsonSerializer.Serialize(_scenarios, options);
                 File.WriteAllText(scenariosFilePath, json);
                 
-                _logger.LogInformation("Saved {Count} scenarios to file: {FilePath}", _scenarios.Count, scenariosFilePath);
             }
             catch (Exception ex)
             {
