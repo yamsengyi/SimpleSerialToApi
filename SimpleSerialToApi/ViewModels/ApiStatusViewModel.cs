@@ -128,8 +128,6 @@ namespace SimpleSerialToApi.ViewModels
 
         private async Task ExecuteTestAllConnectionsAsync()
         {
-            _logger.LogInformation("Testing all API connections...");
-            
             foreach (var endpoint in ApiEndpoints)
             {
                 await TestEndpointConnection(endpoint);
@@ -150,7 +148,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             if (endpoint == null) return;
 
-            _logger.LogInformation("Testing API connection: {EndpointName}", endpoint.Name);
             await TestEndpointConnection(endpoint);
             UpdateOverallStatus();
         }
@@ -187,8 +184,6 @@ namespace SimpleSerialToApi.ViewModels
                 endpoint.TotalCalls++;
                 endpoint.AverageResponseTime = responseTime;
 
-                _logger.LogInformation("API test completed: {EndpointName} - {Status}", 
-                    endpoint.Name, endpoint.Status);
             }
             catch (Exception ex)
             {
@@ -202,7 +197,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             UpdateOverallStatus();
             UpdateStatistics();
-            _logger.LogInformation("API status refreshed");
         }
 
         private void UpdateOverallStatus()
