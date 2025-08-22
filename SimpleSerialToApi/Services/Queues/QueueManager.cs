@@ -496,7 +496,6 @@ namespace SimpleSerialToApi.Services.Queues
                 {
                     // Log error and continue processing
                     // In a real implementation, you'd use proper logging here
-                    Console.WriteLine($"Error in queue processing loop: {ex.Message}");
                     await Task.Delay(1000, cancellationToken); // Wait before retrying
                 }
             }
@@ -587,7 +586,6 @@ namespace SimpleSerialToApi.Services.Queues
                 catch (Exception ex)
                 {
                     // Log error but continue cleanup
-                    Console.WriteLine($"Error stopping processors during disposal: {ex.Message}");
                 }
 
                 // Dispose all queues
@@ -599,7 +597,7 @@ namespace SimpleSerialToApi.Services.Queues
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error disposing queue: {ex.Message}");
+                        // Error disposing queue - continue cleanup
                     }
                 }
 

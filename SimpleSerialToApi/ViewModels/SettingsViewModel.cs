@@ -223,7 +223,6 @@ namespace SimpleSerialToApi.ViewModels
                 MaxQueueSize = config.MessageQueueSettings.MaxQueueSize;
                 BatchSize = config.MessageQueueSettings.BatchSize;
 
-                _logger.LogInformation("Settings loaded successfully");
             }
             catch (Exception ex)
             {
@@ -241,12 +240,8 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Saving settings...");
-
                 // In a real implementation, you would save these settings to configuration
                 // For now, just log the action
-                _logger.LogInformation("Settings saved: Serial Port={ComPort}, API URL={ApiUrl}", 
-                    SelectedComPort, ApiUrl);
 
                 _messenger.Send(new ConfigurationChangedMessage
                 {
@@ -288,8 +283,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Testing serial connection: {ComPort}", SelectedComPort);
-                
                 // Simulate connection test
                 await Task.Delay(1000);
                 
@@ -317,8 +310,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Testing API connection: {ApiUrl}", ApiUrl);
-                
                 // Simulate API test
                 await Task.Delay(1500);
                 

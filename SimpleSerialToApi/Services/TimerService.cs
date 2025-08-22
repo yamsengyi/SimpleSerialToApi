@@ -42,7 +42,6 @@ namespace SimpleSerialToApi.Services
                 return;
 
             _timer = new ThreadingTimer(ProcessQueue, null, TimeSpan.Zero, TimeSpan.FromSeconds(intervalSeconds));
-            _logger.LogInformation("Timer started with {Interval} seconds interval", intervalSeconds);
         }
 
         /// <summary>
@@ -52,7 +51,6 @@ namespace SimpleSerialToApi.Services
         {
             _timer?.Dispose();
             _timer = null;
-            _logger.LogInformation("Timer stopped");
         }
 
         /// <summary>
@@ -97,7 +95,6 @@ namespace SimpleSerialToApi.Services
                 
                 if (success)
                 {
-                    _logger.LogInformation("Successfully sent {Count} messages to API", messages.Count);
                 }
                 else
                 {

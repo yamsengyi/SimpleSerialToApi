@@ -27,7 +27,6 @@ namespace SimpleSerialToApi.Services
             
             // 파일 시스템 와처를 제거하여 파일 잠금 문제를 방지
             // 설정 변경은 명시적인 ReloadConfiguration() 호출로만 처리
-            _logger.LogInformation("Configuration service initialized without file watcher to prevent file locking issues");
         }
 
         public ApplicationConfig ApplicationConfig => _applicationConfig;
@@ -86,7 +85,6 @@ namespace SimpleSerialToApi.Services
                 {
                     ConfigurationManager.RefreshSection("appSettings");
                     LoadConfiguration();
-                    _logger.LogInformation("Configuration reloaded successfully");
                     
                     ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs
                     {
@@ -170,10 +168,6 @@ namespace SimpleSerialToApi.Services
                 {
                     _logger.LogError("Configuration validation failed: {Errors}", string.Join(", ", errors));
                 }
-                else
-                {
-                    _logger.LogInformation("Configuration validation passed");
-                }
 
                 return isValid;
             }
@@ -196,7 +190,6 @@ namespace SimpleSerialToApi.Services
                     section.SectionInformation.ProtectSection("RsaProtectedConfigurationProvider");
                     config.Save();
                     ConfigurationManager.RefreshSection(sectionName);
-                    _logger.LogInformation("Section {SectionName} encrypted successfully", sectionName);
                 }
             }
             catch (Exception ex)
@@ -217,7 +210,6 @@ namespace SimpleSerialToApi.Services
                     section.SectionInformation.UnprotectSection();
                     config.Save();
                     ConfigurationManager.RefreshSection(sectionName);
-                    _logger.LogInformation("Section {SectionName} decrypted successfully", sectionName);
                 }
             }
             catch (Exception ex)
@@ -252,7 +244,6 @@ namespace SimpleSerialToApi.Services
                 // Load logging level
                 _applicationConfig.LogLevel = GetAppSetting("LogLevel");
 
-                _logger.LogInformation("Configuration loaded successfully");
             }
             catch (Exception ex)
             {
@@ -408,8 +399,6 @@ namespace SimpleSerialToApi.Services
                         // Update local settings
                         _applicationConfig.SerialSettings = settings;
 
-                        _logger.LogInformation("Serial settings saved successfully");
-                        
                         // Notify listeners of configuration change
                         ConfigurationChanged?.Invoke(this, new ConfigurationChangedEventArgs 
                         { 

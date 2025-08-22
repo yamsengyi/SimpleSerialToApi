@@ -138,7 +138,6 @@ namespace SimpleSerialToApi.Services
                         if (fileInfo.CreationTime < cutoffDate)
                         {
                             File.Delete(file);
-                            _logger.LogInformation("Deleted old API log file: {FileName}", fileInfo.Name);
                         }
                     }
                 });

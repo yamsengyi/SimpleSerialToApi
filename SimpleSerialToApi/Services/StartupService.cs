@@ -34,7 +34,6 @@ namespace SimpleSerialToApi.Services
                 try
                 {
                     executablePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                    _logger.LogInformation("Using Process.MainModule path for Task Scheduler: {Path}", executablePath);
                 }
                 catch (Exception ex)
                 {
@@ -44,7 +43,6 @@ namespace SimpleSerialToApi.Services
                 if (string.IsNullOrWhiteSpace(executablePath))
                 {
                     executablePath = Path.Combine(AppContext.BaseDirectory, "SimpleSerialToApi.exe");
-                    _logger.LogInformation("Using AppContext.BaseDirectory for Task Scheduler: {Path}", executablePath);
                 }
 
                 var arguments = startMinimized ? "--minimized" : "";
@@ -123,8 +121,6 @@ namespace SimpleSerialToApi.Services
 
                         if (process.ExitCode == 0)
                         {
-                            _logger.LogInformation("Task Scheduler registration successful: {Output}", output);
-                            
                             // 기존 레지스트리 항목이 있다면 제거
                             DisableStartup();
                             
@@ -166,7 +162,6 @@ namespace SimpleSerialToApi.Services
                 try
                 {
                     executablePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                    _logger.LogInformation("Using Process.MainModule path: {Path}", executablePath);
                 }
                 catch (Exception ex)
                 {
@@ -178,7 +173,6 @@ namespace SimpleSerialToApi.Services
                     // Single-file 배포 호환을 위해 AppContext.BaseDirectory 사용
                     var appDir = AppContext.BaseDirectory;
                     executablePath = Path.Combine(appDir, "SimpleSerialToApi.exe");
-                    _logger.LogInformation("Using AppContext.BaseDirectory: {Path}", executablePath);
                 }
 
                 var arguments = startMinimized ? " --minimized" : "";
@@ -188,11 +182,9 @@ namespace SimpleSerialToApi.Services
                 if (registryKey != null)
                 {
                     registryKey.SetValue(APP_NAME, command);
-                    _logger.LogInformation("Startup enabled successfully: {Command}", command);
                     
                     // 등록 직후 검증
                     var verifyValue = registryKey.GetValue(APP_NAME)?.ToString();
-                    _logger.LogInformation("Registry verification - Stored value: {Value}", verifyValue);
                     
                     return true;
                 }
@@ -221,7 +213,6 @@ namespace SimpleSerialToApi.Services
                 if (registryKey != null)
                 {
                     registryKey.DeleteValue(APP_NAME, false);
-                    _logger.LogInformation("Startup disabled");
                     return true;
                 }
                 else
@@ -263,7 +254,6 @@ namespace SimpleSerialToApi.Services
 
                     if (process.ExitCode == 0 || output.Contains("지정한 파일을 찾을 수 없습니다") || output.Contains("does not exist"))
                     {
-                        _logger.LogInformation("Task Scheduler removal successful or task didn't exist");
                         return true;
                     }
                     else

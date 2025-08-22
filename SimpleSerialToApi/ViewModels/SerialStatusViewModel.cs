@@ -141,7 +141,6 @@ namespace SimpleSerialToApi.ViewModels
                 var success = await _serialService.ConnectAsync();
                 if (success)
                 {
-                    _logger.LogInformation("Successfully connected to serial port {PortName}", PortName);
                 }
                 else
                 {
@@ -163,7 +162,6 @@ namespace SimpleSerialToApi.ViewModels
             try
             {
                 await _serialService.DisconnectAsync();
-                _logger.LogInformation("Disconnected from serial port");
             }
             catch (Exception ex)
             {
@@ -200,7 +198,6 @@ namespace SimpleSerialToApi.ViewModels
                 {
                     AvailablePorts.Add(port);
                 }
-                _logger.LogInformation("Refreshed available ports: {Ports}", string.Join(", ", AvailablePorts));
             }
             catch (Exception ex)
             {

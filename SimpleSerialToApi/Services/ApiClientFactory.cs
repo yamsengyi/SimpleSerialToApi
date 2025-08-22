@@ -59,7 +59,6 @@ namespace SimpleSerialToApi.Services
                         return existingClient;
 
                     var newClient = CreateClient(name);
-                    _logger.LogInformation("Created and cached HTTP client for endpoint {EndpointName}", name);
                     return newClient;
                 }
             });
@@ -70,7 +69,6 @@ namespace SimpleSerialToApi.Services
             if (_clients.TryRemove(endpointName, out var client))
             {
                 client.Dispose();
-                _logger.LogInformation("Removed and disposed HTTP client for endpoint {EndpointName}", endpointName);
             }
         }
 
@@ -90,7 +88,6 @@ namespace SimpleSerialToApi.Services
                 client.Dispose();
             }
 
-            _logger.LogInformation("Cleared and disposed all HTTP clients ({Count} clients)", clientsToDispose.Count);
         }
 
         private ApiEndpointConfig? GetEndpointConfiguration(string endpointName)

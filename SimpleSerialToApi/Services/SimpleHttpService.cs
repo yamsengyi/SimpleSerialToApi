@@ -39,7 +39,6 @@ namespace SimpleSerialToApi.Services
         public void SetApiUrl(string url)
         {
             _apiUrl = url;
-            _logger.LogInformation("API URL set to: {Url}", url);
         }
 
         /// <summary>
@@ -60,10 +59,6 @@ namespace SimpleSerialToApi.Services
             
             try
             {
-                // 요청 시작 로그 (FULL PATH 포함)
-                _logger.LogInformation("Sending HTTP request POST to FULL PATH: {FullUrl}, RequestId: {RequestId}, ContentType: {ContentType}, DataLength: {DataLength}", 
-                    _apiUrl, requestId, contentType, data?.Length ?? 0);
-                
                 // 파일 로그: 요청
                 await _apiFileLogService.LogRequestAsync(requestId, "POST", _apiUrl, data, contentType);
                 
@@ -92,8 +87,6 @@ namespace SimpleSerialToApi.Services
 
                 if (response.IsSuccessStatusCode)
                 {
-                    _logger.LogInformation("Successfully sent data to API. Status: {Status}, RequestId: {RequestId}, ContentType: {ContentType}, FullUrl: {FullUrl}", 
-                        response.StatusCode, requestId, contentType, _apiUrl);
                     return true;
                 }
                 else
@@ -129,17 +122,6 @@ namespace SimpleSerialToApi.Services
                 // 리다이렉션 정보도 포함하여 로깅
                 var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? _apiUrl;
                 var isRedirected = !string.Equals(_apiUrl, finalUrl, StringComparison.OrdinalIgnoreCase);
-                
-                if (isRedirected)
-                {
-                    _logger.LogInformation("API connection test (redirected): {StatusCode} {ReasonPhrase} for {OriginalUrl} → {FinalUrl}", 
-                        response.StatusCode, response.ReasonPhrase, _apiUrl, finalUrl);
-                }
-                else
-                {
-                    _logger.LogInformation("API connection test: {StatusCode} {ReasonPhrase} for {Url}", 
-                        response.StatusCode, response.ReasonPhrase, _apiUrl);
-                }
                 
                 // HTTP 응답을 받았다면 연결은 성공 (상태 코드에 관계없이)
                 return true;
