@@ -8,6 +8,9 @@ on:
 jobs:
   release:
     runs-on: windows-latest
+    permissions:
+      contents: write
+      actions: read
     
     steps:
     - name: Checkout code
@@ -36,19 +39,16 @@ jobs:
     - name: Create Release Archives
       run: |
         cd ./publish/win-x64
-        7z a ../../SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip *
+        Compress-Archive -Path * -DestinationPath ../../SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip -Force
         cd ../framework-dependent
-        7z a ../../SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip *
+        Compress-Archive -Path * -DestinationPath ../../SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip -Force
         cd ../..
         
     - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: SimpleSerialToApi ${{ github.ref_name }}
+        name: SimpleSerialToApi ${{ github.ref_name }}
         body: |
           ## 🚀 SimpleSerialToApi ${{ github.ref_name }}
           
@@ -57,36 +57,21 @@ jobs:
           - **Self-Contained (권장)**: .NET Runtime 설치 불필요, 단독 실행 가능
           - **Framework-Dependent**: .NET 8 Runtime 설치 필요, 더 작은 크기
           
-          ### 🔧 새로운 기능
-          - RS232 통신 버퍼 크기 설정 가능
-          - 긴 문자열 자동 청크 전송
-          - Windows 11 자동 실행 지원 (관리자 권한)
-          - FTDI USB-to-Serial 최적화
+          ### 🔧 주요 개선사항
+          - RS232 통신 버퍼 크기 최적화 (ReadBuffer: 4KB, WriteBuffer: 2KB)
+          - 100자 이상 문자열 전송 분할 문제 해결
+          - FTDI USB-to-Serial 호환성 개선
+          - 큰 데이터 청크 단위 자동 전송
+          - 컴파일 오류 66개 수정
           
           ### 📋 시스템 요구사항
           - Windows 10 이상 (x64)
-          - USB 시리얼 통신을 위한 관리자 권한
+          - USB 시리얼 통신을 위한 관리자 권한 권장
           
           자세한 내용은 [README.md](https://github.com/yamsengyi/SimpleSerialToApi/blob/main/README.md)를 참조하세요.
         draft: false
         prerelease: false
-        
-    - name: Upload Self-Contained Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip
-        asset_name: SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip
-        asset_content_type: application/zip
-        
-    - name: Upload Framework-Dependent Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip
-        asset_name: SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip
-        asset_content_type: application/zip
+        files: |
+          SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip
+          SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip
+        token: ${{ secrets.GITHUB_TOKEN }}
