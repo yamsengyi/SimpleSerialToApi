@@ -82,8 +82,6 @@ namespace SimpleSerialToApi.Services
                 TotalRequests = dataList.Count
             };
 
-                endpointName, dataList.Count);
-
             var tasks = dataList.Select(async data =>
             {
                 try
@@ -107,8 +105,6 @@ namespace SimpleSerialToApi.Services
             batchResponse.Responses = (await Task.WhenAll(tasks)).ToList();
             batchResponse.TotalProcessingTime = stopwatch.Elapsed;
 
-                endpointName, batchResponse.SuccessfulRequests, batchResponse.TotalRequests, batchResponse.TotalProcessingTime.TotalMilliseconds);
-
             return batchResponse;
         }
 
@@ -125,8 +121,6 @@ namespace SimpleSerialToApi.Services
                 stopwatch.Stop();
 
                 // 연결이 되어 HTTP 응답을 받았다면 건강한 것으로 판단 (상태 코드에 관계없이)
-                    endpointName, response.StatusCode, stopwatch.ElapsedMilliseconds);
-                
                 return HealthCheckResult.Healthy(endpointName, stopwatch.Elapsed, response.StatusCode);
             }
             catch (Exception ex)
@@ -194,8 +188,6 @@ namespace SimpleSerialToApi.Services
                     // ContentType 설정 (기본값: application/json)
                     var contentType = endpointConfig.ContentType ?? "application/json";
                     request.Content = new StringContent(jsonContent, Encoding.UTF8, contentType);
-                    
-                        method, url, jsonContent, contentType, messageId);
                     
                     // 파일 로그: 요청 (with body)
                     await _apiFileLogService.LogRequestAsync(messageId, method.Method, url, requestBody, contentType);

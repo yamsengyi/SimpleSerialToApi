@@ -333,7 +333,9 @@ namespace SimpleSerialToApi.Services
                 if (Enum.TryParse<Handshake>(ConfigurationManager.AppSettings["Handshake"], out var handshake))
                     settings.Handshake = handshake;
 
-                    settings.PortName, settings.BaudRate, settings.DataBits, settings.Parity, settings.StopBits);
+                // 버퍼 크기 설정 로드
+                settings.ReadBufferSize = int.TryParse(ConfigurationManager.AppSettings["ReadBufferSize"], out var readBufferSize) ? readBufferSize : settings.ReadBufferSize;
+                settings.WriteBufferSize = int.TryParse(ConfigurationManager.AppSettings["WriteBufferSize"], out var writeBufferSize) ? writeBufferSize : settings.WriteBufferSize;
             }
             catch (Exception ex)
             {
@@ -402,8 +404,8 @@ namespace SimpleSerialToApi.Services
             ConnectionSettings.Handshake = settings.Handshake;
             ConnectionSettings.ReadTimeout = settings.ReadTimeout;
             ConnectionSettings.WriteTimeout = settings.WriteTimeout;
-
-                settings.PortName, settings.BaudRate, settings.DataBits, settings.Parity, settings.StopBits);
+            ConnectionSettings.ReadBufferSize = settings.ReadBufferSize;
+            ConnectionSettings.WriteBufferSize = settings.WriteBufferSize;
         }
 
         public void Dispose()

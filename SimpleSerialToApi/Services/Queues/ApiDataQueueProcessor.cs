@@ -179,7 +179,6 @@ namespace SimpleSerialToApi.Services.Queues
                 if (httpMethod.ToUpper() == "GET" || httpMethod.ToUpper() == "DELETE")
                 {
                     // GET/DELETE 요청은 body 없이 전송
-                        httpMethod, fullUrl, httpMethod);
                 }
                 else
                 {
@@ -230,7 +229,6 @@ namespace SimpleSerialToApi.Services.Queues
                     requestMessage.Content = new StringContent(payloadContent, Encoding.UTF8, contentType);
 
                     // 전송 직전 로깅 - FULL PATH와 실제 전송 데이터 확인
-                        httpMethod, fullUrl, payloadContent, contentType);
                 }
 
                 // Set timeout

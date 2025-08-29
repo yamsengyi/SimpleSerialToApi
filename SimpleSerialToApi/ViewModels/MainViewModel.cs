@@ -498,7 +498,6 @@ namespace SimpleSerialToApi.ViewModels
                 _timerService.Start(5); // 기본값 5초
             }
             IsTimerRunning = true;
-                int.TryParse(TransmissionInterval, out int logInterval) ? logInterval : 5);
         }
 
         private void StopTimerAutomatically()
@@ -653,7 +652,6 @@ namespace SimpleSerialToApi.ViewModels
                 if (queue != null)
                 {
                     await queue.EnqueueAsync(queueMessage);
-                        scenario.Name, result.ProcessedData);
                     
                     // API 모니터에 큐에 추가됨을 로그
                     var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod, 
@@ -691,8 +689,6 @@ namespace SimpleSerialToApi.ViewModels
                 var originalUrl = _apiUrl;
                 _httpService.SetApiUrl(apiUrl);
                 
-                    apiUrl, scenario.Name);
-                
                 // API 호출 수행 (JSON 형태로 전송)
                 var startTime = DateTime.Now;
                 bool success = await _httpService.SendJsonAsync(result.ProcessedData);
@@ -712,8 +708,6 @@ namespace SimpleSerialToApi.ViewModels
                     _apiMonitorService.LogApiResponse(requestId, System.Net.HttpStatusCode.BadRequest, 
                         "API transmission failed", null, responseTime);
                 }
-                
-                    scenario.Name, success ? "Success" : "Failed");
             }
             catch (Exception ex)
             {
@@ -1048,8 +1042,6 @@ namespace SimpleSerialToApi.ViewModels
                 TransmissionInterval = transmissionInterval;
                 BatchSize = batchSize;
                 DeviceId = deviceId;
-                
-                    transmissionInterval, batchSize, deviceId);
             }
             catch (Exception ex)
             {
@@ -1916,8 +1908,6 @@ namespace SimpleSerialToApi.ViewModels
                 
                 var response = await httpClient.GetAsync(testUrl);
                 var success = response != null; // 어떤 응답이든 연결되면 성공
-                
-                    success, response?.StatusCode);
                 
                 return success;
             }
