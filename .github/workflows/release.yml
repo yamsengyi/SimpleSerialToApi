@@ -1,0 +1,92 @@
+name: Release
+
+# 이 워크플로우는 태그 생성 시에만 실행되어 실제 릴리스를 생성
+on:
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+      
+    - name: Publish Self-Contained Windows x64
+      run: dotnet publish SimpleSerialToApi/SimpleSerialToApi.csproj -c Release --self-contained true -r win-x64 --output ./publish/win-x64
+      
+    - name: Publish Framework-Dependent
+      run: dotnet publish SimpleSerialToApi/SimpleSerialToApi.csproj -c Release --self-contained false --output ./publish/framework-dependent
+      
+    - name: Create Release Archives
+      run: |
+        cd ./publish/win-x64
+        7z a ../../SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip *
+        cd ../framework-dependent
+        7z a ../../SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip *
+        cd ../..
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: SimpleSerialToApi ${{ github.ref_name }}
+        body: |
+          ## 🚀 SimpleSerialToApi ${{ github.ref_name }}
+          
+          ### 📦 다운로드 옵션
+          
+          - **Self-Contained (권장)**: .NET Runtime 설치 불필요, 단독 실행 가능
+          - **Framework-Dependent**: .NET 8 Runtime 설치 필요, 더 작은 크기
+          
+          ### 🔧 새로운 기능
+          - RS232 통신 버퍼 크기 설정 가능
+          - 긴 문자열 자동 청크 전송
+          - Windows 11 자동 실행 지원 (관리자 권한)
+          - FTDI USB-to-Serial 최적화
+          
+          ### 📋 시스템 요구사항
+          - Windows 10 이상 (x64)
+          - USB 시리얼 통신을 위한 관리자 권한
+          
+          자세한 내용은 [README.md](https://github.com/yamsengyi/SimpleSerialToApi/blob/main/README.md)를 참조하세요.
+        draft: false
+        prerelease: false
+        
+    - name: Upload Self-Contained Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip
+        asset_name: SimpleSerialToApi-${{ github.ref_name }}-win-x64-selfcontained.zip
+        asset_content_type: application/zip
+        
+    - name: Upload Framework-Dependent Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip
+        asset_name: SimpleSerialToApi-${{ github.ref_name }}-framework-dependent.zip
+        asset_content_type: application/zip

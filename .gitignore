@@ -52,8 +52,11 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
-publish-admin-startup.zip
+
+# Custom publish folders and artifacts
+publish-admin-startup/
+publish-win11-fixed/
+publish-final/
+publish/
+*.zip
 StartupDiagnostic.ps1
-publish-admin-startup/SimpleSerialToApi.dll.config
-publish-admin-startup/SimpleSerialToApi.exe
-publish-admin-startup/SimpleSerialToApi.pdb

@@ -1,0 +1,41 @@
+name: Build and Test
+
+# 이 워크플로우는 빌드와 테스트만 수행 (배포 없음)
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+      
+    # PR이나 일반 푸시에서는 빌드 확인용 Artifacts만 생성
+    - name: Build Artifacts (Verification Only)
+      run: dotnet publish SimpleSerialToApi/SimpleSerialToApi.csproj -c Release --self-contained true -r win-x64 --output ./build-verification
+      
+    - name: Upload Build Verification
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-verification-${{ github.sha }}
+        path: ./build-verification/
+        retention-days: 7  # 7일 후 자동 삭제

@@ -18,17 +18,53 @@
 
 ## 설치 및 실행
 
-### 빌드 및 실행
+### 📦 사전 빌드된 실행파일 다운로드 (권장)
+
+1. **GitHub Releases**에서 최신 버전 다운로드:
+   - [Releases 페이지](https://github.com/yamsengyi/SimpleSerialToApi/releases)에서 `SimpleSerialToApi-vX.X.X-win-x64.zip` 다운로드
+   - 압축 해제 후 `SimpleSerialToApi.exe` 실행
+   - **장점**: .NET Runtime 설치 불필요 (Self-Contained)
+
+2. **GitHub Actions Artifacts**에서 최신 빌드 다운로드:
+   - [Actions 탭](https://github.com/yamsengyi/SimpleSerialToApi/actions)에서 최신 성공한 빌드 선택
+   - `SimpleSerialToApi-SelfContained-win-x64` 아티팩트 다운로드
+
+### 🔨 소스코드에서 빌드
+
 ```bash
 # 저장소 클론
 git clone https://github.com/yamsengyi/SimpleSerialToApi.git
 cd SimpleSerialToApi
 
-# 빌드 및 실행
+# .NET 8 SDK 설치 확인
+dotnet --version  # 8.0.x 이상 필요
+
+# 의존성 복원 및 빌드
 dotnet restore
-dotnet build
-dotnet run --project SimpleSerialToApi
+dotnet build --configuration Release
+
+# 실행
+dotnet run --project SimpleSerialToApi --configuration Release
 ```
+
+### 🚀 배포용 빌드 생성
+
+```bash
+# Self-Contained 배포 (Runtime 포함)
+dotnet publish SimpleSerialToApi/SimpleSerialToApi.csproj -c Release --self-contained true -r win-x64 --output ./publish
+
+# Framework-Dependent 배포 (.NET Runtime 필요)
+dotnet publish SimpleSerialToApi/SimpleSerialToApi.csproj -c Release --self-contained false --output ./publish-fd
+```
+
+### ⚙️ 시스템 요구사항
+
+- **OS**: Windows 10 이상 (x64)
+- **Runtime**:
+  - Self-Contained 버전: 없음 (내장됨)
+  - Framework-Dependent 버전: [.NET 8 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+- **권한**: USB 시리얼 통신을 위한 관리자 권한 (자동 등록됨)
+- **하드웨어**: Serial 포트 또는 USB-to-Serial 변환기 (FTDI 권장)
 
 ## 프로젝트 구조
 
