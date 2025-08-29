@@ -185,7 +185,6 @@ namespace SimpleSerialToApi.ViewModels
                 if (!string.IsNullOrWhiteSpace(value))
                 {
                     _serialService.UpdatePortName(value);
-                    _logger.LogInformation("Serial port updated to: {PortName}", value);
                 }
             }
         }
@@ -499,7 +498,6 @@ namespace SimpleSerialToApi.ViewModels
                 _timerService.Start(5); // 기본값 5초
             }
             IsTimerRunning = true;
-            _logger.LogInformation("Timer started automatically on connection with {Interval}s interval", 
                 int.TryParse(TransmissionInterval, out int logInterval) ? logInterval : 5);
         }
 
@@ -507,7 +505,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             _timerService.Stop();
             IsTimerRunning = false;
-            _logger.LogInformation("Timer stopped automatically on disconnection");
         }
 
         /// <summary>
@@ -656,7 +653,6 @@ namespace SimpleSerialToApi.ViewModels
                 if (queue != null)
                 {
                     await queue.EnqueueAsync(queueMessage);
-                    _logger.LogInformation("API data queued for scenario '{ScenarioName}': {Data}", 
                         scenario.Name, result.ProcessedData);
                     
                     // API 모니터에 큐에 추가됨을 로그
@@ -695,7 +691,6 @@ namespace SimpleSerialToApi.ViewModels
                 var originalUrl = _apiUrl;
                 _httpService.SetApiUrl(apiUrl);
                 
-                _logger.LogInformation("Sending data to API endpoint: {ApiUrl} (Scenario: {ScenarioName})", 
                     apiUrl, scenario.Name);
                 
                 // API 호출 수행 (JSON 형태로 전송)
@@ -718,7 +713,6 @@ namespace SimpleSerialToApi.ViewModels
                         "API transmission failed", null, responseTime);
                 }
                 
-                _logger.LogInformation("API transmission completed for scenario '{ScenarioName}': {Success}", 
                     scenario.Name, success ? "Success" : "Failed");
             }
             catch (Exception ex)
@@ -735,7 +729,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Starting serial transmission for scenario '{ScenarioName}'", scenario.Name);
                 
                 if (!_serialService.IsConnected)
                 {
@@ -757,7 +750,6 @@ namespace SimpleSerialToApi.ViewModels
                 {
                     // 전송된 데이터를 시리얼 모니터에 TX로 기록
                     _serialMonitorService.LogSerialSent(dataToSend);
-                    _logger.LogInformation("Serial transmission completed for scenario '{ScenarioName}': Success", scenario.Name);
                 }
                 else
                 {
@@ -832,7 +824,6 @@ namespace SimpleSerialToApi.ViewModels
                     AvailablePorts.Add(portInfo);
                 }
 
-                _logger.LogInformation("Refreshed {Count} COM ports", AvailablePorts.Count);
                 
                 // 새로고침 후 스마트 선택 수행 (기존 선택이 없거나 더 이상 사용할 수 없는 경우)
                 if (string.IsNullOrEmpty(currentSelectedPort) || 
@@ -894,7 +885,6 @@ namespace SimpleSerialToApi.ViewModels
                         }
                     }
                     
-                    _logger.LogInformation("Smart selected COM port: {Port}", smartPort);
                 }
                 else
                 {
@@ -930,7 +920,6 @@ namespace SimpleSerialToApi.ViewModels
                         {
                             SerialPort = portName;
                             Status = $"Auto-connecting to {portName}...";
-                            _logger.LogInformation("Auto-connecting to port: {Port}", portName);
                             
                             // 잠시 대기 후 연결 시도
                             await Task.Delay(1000);
@@ -963,7 +952,6 @@ namespace SimpleSerialToApi.ViewModels
                     System.Configuration.ConfigurationManager.RefreshSection("appSettings");
                     
                     Status = $"Transmission interval set to {interval} seconds";
-                    _logger.LogInformation("Transmission interval updated to {Interval} seconds", interval);
                 }
                 else
                 {
@@ -996,7 +984,6 @@ namespace SimpleSerialToApi.ViewModels
                     System.Configuration.ConfigurationManager.RefreshSection("appSettings");
                     
                     Status = $"Batch size set to {batchSize}";
-                    _logger.LogInformation("Batch size updated to {BatchSize}", batchSize);
                 }
                 else
                 {
@@ -1027,7 +1014,6 @@ namespace SimpleSerialToApi.ViewModels
                                         ?? config.ApiEndpoints.First();
                     
                     _apiUrl = defaultEndpoint.Url;
-                    _logger.LogInformation("Test API URL loaded from configuration: {ApiUrl}", _apiUrl);
                     return;
                 }
 
@@ -1036,7 +1022,6 @@ namespace SimpleSerialToApi.ViewModels
                 if (!string.IsNullOrEmpty(legacyApiUrl))
                 {
                     _apiUrl = legacyApiUrl;
-                    _logger.LogInformation("API URL loaded from legacy AppSettings: {ApiUrl}", _apiUrl);
                     return;
                 }
 
@@ -1064,7 +1049,6 @@ namespace SimpleSerialToApi.ViewModels
                 BatchSize = batchSize;
                 DeviceId = deviceId;
                 
-                _logger.LogInformation("Settings loaded: Interval={Interval}s, BatchSize={BatchSize}, DeviceId={DeviceId}", 
                     transmissionInterval, batchSize, deviceId);
             }
             catch (Exception ex)
@@ -1092,7 +1076,6 @@ namespace SimpleSerialToApi.ViewModels
                     MappingScenarios.Add(scenario);
                 }
                 
-                _logger.LogInformation("Initialized {Count} mapping scenarios", MappingScenarios.Count);
             }
             catch (Exception ex)
             {
@@ -1135,7 +1118,6 @@ namespace SimpleSerialToApi.ViewModels
                     System.Configuration.ConfigurationManager.RefreshSection("appSettings");
                     
                     Status = $"Device ID set to '{DeviceId}'";
-                    _logger.LogInformation("Device ID updated to {DeviceId}", DeviceId);
                 }
                 else
                 {
@@ -1181,7 +1163,6 @@ namespace SimpleSerialToApi.ViewModels
                 SelectedMappingScenario = newScenario;
                 
                 Status = $"Added new scenario: {newScenario.Name}";
-                _logger.LogInformation("Added new mapping scenario: {Name}", newScenario.Name);
             }
             catch (Exception ex)
             {
@@ -1204,7 +1185,6 @@ namespace SimpleSerialToApi.ViewModels
                     SelectedMappingScenario = null;
                     
                     Status = $"Deleted scenario: {scenarioName}";
-                    _logger.LogInformation("Deleted mapping scenario: {Name}", scenarioName);
                 }
                 else
                 {
@@ -1241,7 +1221,6 @@ namespace SimpleSerialToApi.ViewModels
                     Status = "Test completed: No matches found";
                 }
                 
-                _logger.LogInformation("Mapping test completed with {Count} results", results.Count);
             }
             catch (Exception ex)
             {
@@ -1268,7 +1247,6 @@ namespace SimpleSerialToApi.ViewModels
                 _dataMappingService.SaveScenariosToFile();
                 
                 Status = $"Saved {MappingScenarios.Count} mapping scenarios to file";
-                _logger.LogInformation("Saved {Count} mapping scenarios to file", MappingScenarios.Count);
             }
             catch (Exception ex)
             {
@@ -1296,7 +1274,6 @@ namespace SimpleSerialToApi.ViewModels
                 DataMappingWindowCloseRequested?.Invoke(this, true);
                 
                 Status = "Data mapping changes applied and saved";
-                _logger.LogInformation("Data mapping changes applied and saved");
             }
             catch (Exception ex)
             {
@@ -1316,7 +1293,6 @@ namespace SimpleSerialToApi.ViewModels
                 DataMappingWindowCloseRequested?.Invoke(this, false);
                 
                 Status = "Data mapping window closed without saving";
-                _logger.LogInformation("Data mapping window closed without saving");
             }
             catch (Exception ex)
             {
@@ -1331,7 +1307,6 @@ namespace SimpleSerialToApi.ViewModels
         private void ShowSerialMonitor()
         {
             SerialMonitorVisible = true;
-            _logger.LogInformation("Serial monitor shown");
         }
 
         /// <summary>
@@ -1340,7 +1315,6 @@ namespace SimpleSerialToApi.ViewModels
         private void HideSerialMonitor()
         {
             SerialMonitorVisible = false;
-            _logger.LogInformation("Serial monitor hidden");
         }
 
         /// <summary>
@@ -1349,7 +1323,6 @@ namespace SimpleSerialToApi.ViewModels
         private void ShowApiMonitor()
         {
             ApiMonitorVisible = true;
-            _logger.LogInformation("API monitor shown");
         }
 
         /// <summary>
@@ -1358,7 +1331,6 @@ namespace SimpleSerialToApi.ViewModels
         private void HideApiMonitor()
         {
             ApiMonitorVisible = false;
-            _logger.LogInformation("API monitor hidden");
         }
 
         /// <summary>
@@ -1371,7 +1343,6 @@ namespace SimpleSerialToApi.ViewModels
             _serialMessageCount = 0;
             OnPropertyChanged(nameof(SerialMessageCount));
             Status = "Serial monitor cleared";
-            _logger.LogInformation("Serial monitor cleared");
         }
 
         /// <summary>
@@ -1386,7 +1357,6 @@ namespace SimpleSerialToApi.ViewModels
             OnPropertyChanged(nameof(ApiRequestCount));
             OnPropertyChanged(nameof(ApiSuccessRate));
             Status = "API monitor cleared";
-            _logger.LogInformation("API monitor cleared");
         }
 
         /// <summary>
@@ -1397,7 +1367,6 @@ namespace SimpleSerialToApi.ViewModels
             SerialMonitorVisible = !SerialMonitorVisible;
             var action = SerialMonitorVisible ? "shown" : "hidden";
             Status = $"Serial monitor {action}";
-            _logger.LogInformation("Serial monitor {Action}", action);
         }
 
         /// <summary>
@@ -1408,7 +1377,6 @@ namespace SimpleSerialToApi.ViewModels
             ApiMonitorVisible = !ApiMonitorVisible;
             var action = ApiMonitorVisible ? "shown" : "hidden";
             Status = $"API monitor {action}";
-            _logger.LogInformation("API monitor {Action}", action);
         }
 
         /// <summary>
@@ -1422,7 +1390,6 @@ namespace SimpleSerialToApi.ViewModels
                 var filePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
                 System.IO.File.WriteAllText(filePath, SerialMonitorText);
                 Status = $"Serial monitor saved to {fileName}";
-                _logger.LogInformation("Serial monitor saved to {FilePath}", filePath);
             }
             catch (Exception ex)
             {
@@ -1442,7 +1409,6 @@ namespace SimpleSerialToApi.ViewModels
                 var filePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
                 System.IO.File.WriteAllText(filePath, ApiMonitorText);
                 Status = $"API monitor saved to {fileName}";
-                _logger.LogInformation("API monitor saved to {FilePath}", filePath);
             }
             catch (Exception ex)
             {
@@ -1470,7 +1436,6 @@ namespace SimpleSerialToApi.ViewModels
                             _dataMappingWindow.Activate();
                             _dataMappingWindow.Focus();
                             Status = "Data mapping window focused";
-                            _logger.LogInformation("Data mapping window focused (already open)");
                             return;
                         }
                         else
@@ -1493,13 +1458,11 @@ namespace SimpleSerialToApi.ViewModels
                 _dataMappingWindow.Closed += (sender, e) => 
                 {
                     _dataMappingWindow = null;
-                    _logger.LogInformation("Data mapping window closed, reference cleared");
                 };
                 
                 _dataMappingWindow.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
                 OnPropertyChanged(nameof(MappingScenariosCount));
                 Status = "Data mapping window opened";
-                _logger.LogInformation("Data mapping window opened");
             }
             catch (Exception ex)
             {
@@ -1527,7 +1490,6 @@ namespace SimpleSerialToApi.ViewModels
                             _reservedWordsWindow.Activate();
                             _reservedWordsWindow.Focus();
                             Status = "Reserved words window focused";
-                            _logger.LogInformation("Reserved words window focused (already open)");
                             return;
                         }
                         else
@@ -1550,12 +1512,10 @@ namespace SimpleSerialToApi.ViewModels
                 _reservedWordsWindow.Closed += (sender, e) => 
                 {
                     _reservedWordsWindow = null;
-                    _logger.LogInformation("Reserved words window closed, reference cleared");
                 };
                 
                 _reservedWordsWindow.Show(); // ShowDialog() 대신 Show() 사용하여 모달이 아닌 일반 창으로 열기
                 Status = "Reserved words window shown";
-                _logger.LogInformation("Reserved words window shown");
             }
             catch (Exception ex)
             {
@@ -1622,7 +1582,6 @@ namespace SimpleSerialToApi.ViewModels
                             _serialMonitorWindow.Activate();
                             _serialMonitorWindow.Focus();
                             Status = "Serial monitor window focused";
-                            _logger.LogInformation("Serial monitor window focused (already open)");
                             return;
                         }
                         else
@@ -1648,12 +1607,10 @@ namespace SimpleSerialToApi.ViewModels
                 _serialMonitorWindow.Closed += (sender, e) => 
                 {
                     _serialMonitorWindow = null;
-                    _logger.LogInformation("Serial monitor window closed, reference cleared");
                 };
                 
                 _serialMonitorWindow.Show();
                 Status = "Serial monitor window opened";
-                _logger.LogInformation("Serial monitor window opened");
             }
             catch (Exception ex)
             {
@@ -1681,7 +1638,6 @@ namespace SimpleSerialToApi.ViewModels
                             _apiMonitorWindow.Activate();
                             _apiMonitorWindow.Focus();
                             Status = "API monitor window focused";
-                            _logger.LogInformation("API monitor window focused (already open)");
                             return;
                         }
                         else
@@ -1707,12 +1663,10 @@ namespace SimpleSerialToApi.ViewModels
                 _apiMonitorWindow.Closed += (sender, e) => 
                 {
                     _apiMonitorWindow = null;
-                    _logger.LogInformation("API monitor window closed, reference cleared");
                 };
                 
                 _apiMonitorWindow.Show();
                 Status = "API monitor window opened";
-                _logger.LogInformation("API monitor window opened");
             }
             catch (Exception ex)
             {
@@ -1751,7 +1705,6 @@ namespace SimpleSerialToApi.ViewModels
                         Connect();
                     }
                     Status = "Serial configuration updated and saved";
-                    _logger.LogInformation("Serial configuration updated and saved");
                 }
             }
             catch (Exception ex)
@@ -1836,7 +1789,6 @@ namespace SimpleSerialToApi.ViewModels
                     _serialDataSimulator.Start(interval);
                     IsSimulating = true;
                     Status = $"Simulation started (interval: {interval}s)";
-                    _logger.LogInformation("Serial data simulation started with interval: {Interval}s", interval);
                 }
                 else
                 {
@@ -1862,7 +1814,6 @@ namespace SimpleSerialToApi.ViewModels
                 _serialDataSimulator.Stop();
                 IsSimulating = false;
                 Status = "Simulation stopped";
-                _logger.LogInformation("Serial data simulation stopped");
             }
             catch (Exception ex)
             {
@@ -1881,7 +1832,6 @@ namespace SimpleSerialToApi.ViewModels
             {
                 _serialDataSimulator.GenerateSingleData();
                 Status = "Single simulation data generated";
-                _logger.LogInformation("Single simulation data generated");
             }
             catch (Exception ex)
             {
@@ -1937,12 +1887,10 @@ namespace SimpleSerialToApi.ViewModels
             try
             {
                 // 먼저 테스트 API 호출로 연결 확인
-                _logger.LogInformation("Testing API connectivity before enabling queue processing...");
                 
                 var testSuccess = await TestApiConnectivity();
                 if (testSuccess)
                 {
-                    _logger.LogInformation("API connectivity test successful - enabling queue processing");
                     await InitializeQueueProcessing();
                 }
                 else
@@ -1969,7 +1917,6 @@ namespace SimpleSerialToApi.ViewModels
                 var response = await httpClient.GetAsync(testUrl);
                 var success = response != null; // 어떤 응답이든 연결되면 성공
                 
-                _logger.LogInformation("API connectivity test result: {Success} (Status: {StatusCode})", 
                     success, response?.StatusCode);
                 
                 return success;
@@ -1988,7 +1935,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Initializing queue processing...");
 
                 // API 데이터 큐 생성
                 const string queueName = "ApiDataQueue";
@@ -2006,14 +1952,12 @@ namespace SimpleSerialToApi.ViewModels
                 };
                 
                 var queue = _queueManager.CreateQueue<MappedApiData>(queueName, queueConfig);
-                _logger.LogInformation("Created queue: {QueueName} with capacity: {Capacity}", queueName, queueConfig.MaxSize);
 
                 // 큐 프로세서 시작
                 var success = await _queueManager.StartProcessingAsync(queueName, _apiDataQueueProcessor);
                 
                 if (success)
                 {
-                    _logger.LogInformation("Queue processing started successfully");
                 }
                 else
                 {
@@ -2033,14 +1977,12 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Clearing message queue...");
                 
                 // 큐 매니저를 통해 큐 클리어
                 var queueNames = _queueManager.GetQueueNames();
                 foreach (var queueName in queueNames)
                 {
                     await _queueManager.ClearQueueAsync(queueName);
-                    _logger.LogInformation("Cleared queue: {QueueName}", queueName);
                 }
                 
                 // 레거시 큐 서비스도 클리어
@@ -2052,7 +1994,6 @@ namespace SimpleSerialToApi.ViewModels
                 System.Windows.MessageBox.Show("메시지 큐가 성공적으로 삭제되었습니다.", "Queue 클리어", 
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 
-                _logger.LogInformation("All message queues cleared successfully");
             }
             catch (Exception ex)
             {
@@ -2069,7 +2010,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Clearing all monitor logs...");
                 
                 // Serial Monitor 로그 클리어
                 _serialMonitorService.ClearLogs();
@@ -2080,7 +2020,6 @@ namespace SimpleSerialToApi.ViewModels
                 System.Windows.MessageBox.Show("모든 모니터 로그가 성공적으로 삭제되었습니다.", "로그 클리어", 
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 
-                _logger.LogInformation("All monitor logs cleared successfully");
             }
             catch (Exception ex)
             {
@@ -2105,7 +2044,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("Closing all child windows...");
 
                 // 데이터 매핑 창 닫기
                 if (_dataMappingWindow != null)
@@ -2167,7 +2105,6 @@ namespace SimpleSerialToApi.ViewModels
                     }
                 }
 
-                _logger.LogInformation("All child windows closed successfully");
             }
             catch (Exception ex)
             {
@@ -2180,7 +2117,6 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
-                _logger.LogInformation("MainViewModel disposing...");
 
                 // 백그라운드 작업 취소
                 if (!_cancellationTokenSource.IsCancellationRequested)
@@ -2232,7 +2168,6 @@ namespace SimpleSerialToApi.ViewModels
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
-                _logger.LogInformation("MainViewModel disposed successfully");
             }
             catch (Exception ex)
             {

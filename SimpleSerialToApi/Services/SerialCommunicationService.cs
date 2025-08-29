@@ -33,7 +33,6 @@ namespace SimpleSerialToApi.Services
             _comPortDiscovery = comPortDiscovery ?? throw new ArgumentNullException(nameof(comPortDiscovery));
             
             ConnectionSettings = LoadConnectionSettings();
-            _logger.LogInformation("SerialCommunicationService initialized with port {PortName}", ConnectionSettings.PortName);
         }
 
         public async Task<bool> ConnectAsync()
@@ -43,11 +42,9 @@ namespace SimpleSerialToApi.Services
             {
                 if (IsConnected)
                 {
-                    _logger.LogInformation("Already connected to {PortName}", ConnectionSettings.PortName);
                     return true;
                 }
 
-                _logger.LogInformation("Attempting to connect to {PortName}", ConnectionSettings.PortName);
 
                 _serialPort = new SerialPort
                 {
@@ -77,7 +74,6 @@ namespace SimpleSerialToApi.Services
 
                 var eventArgs = new Models.SerialConnectionEventArgs(true, ConnectionSettings.PortName, "Connected successfully");
                 ConnectionStatusChanged?.Invoke(this, eventArgs);
-                _logger.LogInformation("Successfully connected to {PortName}", ConnectionSettings.PortName);
                 
                 return true;
             }
@@ -108,7 +104,6 @@ namespace SimpleSerialToApi.Services
                     
                     var eventArgs = new Models.SerialConnectionEventArgs(false, ConnectionSettings.PortName, "Disconnected");
                     ConnectionStatusChanged?.Invoke(this, eventArgs);
-                    _logger.LogInformation("Disconnected from {PortName}", ConnectionSettings.PortName);
                 }
                 
                 _serialPort?.Dispose();
@@ -235,7 +230,6 @@ namespace SimpleSerialToApi.Services
 
             try
             {
-                _logger.LogInformation("Initializing device on {PortName}", ConnectionSettings.PortName);
                 
                 // Send initialization command (can be customized based on device requirements)
                 var initCommand = Encoding.UTF8.GetBytes("INIT\r\n");
@@ -250,7 +244,6 @@ namespace SimpleSerialToApi.Services
                 // Wait for ACK response (simplified - could be enhanced with actual ACK/NACK detection)
                 await Task.Delay(1000); // Wait for device response
                 
-                _logger.LogInformation("Device initialization completed for {PortName}", ConnectionSettings.PortName);
                 return true;
             }
             catch (Exception ex)
@@ -319,12 +312,10 @@ namespace SimpleSerialToApi.Services
                 {
                     var smartSelectedPort = _comPortDiscovery.GetBestAvailableComPort();
                     settings.PortName = smartSelectedPort ?? settings.PortName;
-                    _logger.LogInformation("Smart selected COM port: {PortName}", settings.PortName);
                 }
                 else
                 {
                     settings.PortName = configuredPort;
-                    _logger.LogInformation("Using configured COM port: {PortName}", settings.PortName);
                 }
 
                 settings.BaudRate = int.TryParse(ConfigurationManager.AppSettings["BaudRate"], out var baudRate) ? baudRate : settings.BaudRate;
@@ -342,7 +333,6 @@ namespace SimpleSerialToApi.Services
                 if (Enum.TryParse<Handshake>(ConfigurationManager.AppSettings["Handshake"], out var handshake))
                     settings.Handshake = handshake;
 
-                _logger.LogInformation("Serial settings loaded: {PortName}, {BaudRate} baud, {DataBits} data bits, {Parity} parity, {StopBits} stop bits",
                     settings.PortName, settings.BaudRate, settings.DataBits, settings.Parity, settings.StopBits);
             }
             catch (Exception ex)
@@ -389,7 +379,6 @@ namespace SimpleSerialToApi.Services
             if (ConnectionSettings.PortName != portName)
             {
                 ConnectionSettings.PortName = portName;
-                _logger.LogInformation("Port name updated to: {PortName}", portName);
             }
         }
 
@@ -414,7 +403,6 @@ namespace SimpleSerialToApi.Services
             ConnectionSettings.ReadTimeout = settings.ReadTimeout;
             ConnectionSettings.WriteTimeout = settings.WriteTimeout;
 
-            _logger.LogInformation("Connection settings updated: {PortName}, {BaudRate} baud, {DataBits} data bits, {Parity} parity, {StopBits} stop bits",
                 settings.PortName, settings.BaudRate, settings.DataBits, settings.Parity, settings.StopBits);
         }
 
@@ -425,7 +413,6 @@ namespace SimpleSerialToApi.Services
                 DisconnectAsync().Wait();
                 _connectionSemaphore?.Dispose();
                 _disposed = true;
-                _logger.LogInformation("SerialCommunicationService disposed");
             }
         }
     }

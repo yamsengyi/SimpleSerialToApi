@@ -1,11 +1,10 @@
 # SimpleSerialToApi
 
-**SimpleSerialToApi**는 Serial 통신으로 장비 데이터를 수집하고, STX/ETX 기반 메시지 단위로 Queue에 적재한 뒤, Timer 기반으로 주기적으로 HTTP API로 전송하는 간단하고 안정적인 Windows .NET 8 WPF 애플리케이션입니다.
+**SimpleSerialToApi**는 Serial 통신으로 장비 데이터를 수집하고, 메시지 단위로 Queue에 적재한 뒤, Timer 기반으로 주기적으로 HTTP API로 전송하는 간단하고 안정적인 Windows .NET 8 WPF 애플리케이션입니다.
 
 ## 주요 기능
 
 - **Serial 통신**: COM 포트로 장비 연결 및 데이터 수신
-- **STX/ETX Queue**: 메시지 단위 파싱 및 FIFO 큐 관리
 - **HTTP API 전송**: Timer 기반 주기적 POST 전송
 - **WPF UI**: 연결/큐/전송 상태 실시간 표시
 - **기본 설정**: COM 포트, API URL, 전송 주기 설정

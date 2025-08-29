@@ -14,8 +14,6 @@ namespace SimpleSerialToApi
         {
             _logger = logger;
             InitializeComponent();
-            
-            _logger.LogInformation("MainWindow initialized - Step 01 project setup complete");
         }
     }
 }

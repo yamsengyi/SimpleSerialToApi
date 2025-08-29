@@ -30,7 +30,6 @@ namespace SimpleSerialToApi.Services
                 var lastUsedPort = GetLastUsedComPort();
                 if (!string.IsNullOrEmpty(lastUsedPort) && IsPortAvailable(lastUsedPort))
                 {
-                    _logger.LogInformation("Using last used COM port: {Port}", lastUsedPort);
                     return lastUsedPort;
                 }
 
@@ -38,7 +37,6 @@ namespace SimpleSerialToApi.Services
                 var smartSelectedPort = GetSmartSelectedPort();
                 if (!string.IsNullOrEmpty(smartSelectedPort))
                 {
-                    _logger.LogInformation("Smart selected COM port: {Port}", smartSelectedPort);
                     return smartSelectedPort;
                 }
 
@@ -47,7 +45,6 @@ namespace SimpleSerialToApi.Services
                 var firstAvailable = availablePorts.FirstOrDefault();
                 if (!string.IsNullOrEmpty(firstAvailable))
                 {
-                    _logger.LogInformation("Using first available COM port: {Port}", firstAvailable);
                     return firstAvailable;
                 }
 
@@ -109,7 +106,6 @@ namespace SimpleSerialToApi.Services
                 config.Save(ConfigurationSaveMode.Modified);
                 ConfigurationManager.RefreshSection("appSettings");
                 
-                _logger.LogInformation("Saved last used COM port: {Port}", portName);
             }
             catch (Exception ex)
             {
@@ -150,7 +146,6 @@ namespace SimpleSerialToApi.Services
                 config.Save(ConfigurationSaveMode.Modified);
                 ConfigurationManager.RefreshSection("appSettings");
                 
-                _logger.LogInformation("Auto-connect enabled for port: {Port}", portName);
             }
             catch (Exception ex)
             {
