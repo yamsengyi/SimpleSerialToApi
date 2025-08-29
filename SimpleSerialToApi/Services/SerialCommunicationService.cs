@@ -58,8 +58,13 @@ namespace SimpleSerialToApi.Services
                     StopBits = ConnectionSettings.StopBits,
                     Handshake = ConnectionSettings.Handshake,
                     ReadTimeout = ConnectionSettings.ReadTimeout,
-                    WriteTimeout = ConnectionSettings.WriteTimeout
+                    WriteTimeout = ConnectionSettings.WriteTimeout,
+                    ReadBufferSize = ConnectionSettings.ReadBufferSize,
+                    WriteBufferSize = ConnectionSettings.WriteBufferSize
                 };
+
+                _logger.LogInformation("Serial port configured - Buffers: Read={ReadBuffer}KB, Write={WriteBuffer}KB", 
+                    ConnectionSettings.ReadBufferSize / 1024.0, ConnectionSettings.WriteBufferSize / 1024.0);
 
                 // Subscribe to data received event
                 _serialPort.DataReceived += SerialPort_DataReceived;
@@ -135,14 +140,68 @@ namespace SimpleSerialToApi.Services
 
             try
             {
-                await Task.Run(() => _serialPort!.Write(data, 0, data.Length));
-                _logger.LogDebug("Sent {ByteCount} bytes to {PortName}: {Data}", 
-                    data.Length, ConnectionSettings.PortName, Convert.ToHexString(data));
-                return true;
+                // 데이터가 쓰기 버퍼 크기보다 큰 경우 청크 단위로 전송
+                if (data.Length > ConnectionSettings.WriteBufferSize)
+                {
+                    return await SendDataInChunksAsync(data);
+                }
+                else
+                {
+                    await Task.Run(() => _serialPort!.Write(data, 0, data.Length));
+                    _logger.LogDebug("Sent {ByteCount} bytes to {PortName}: {Data}", 
+                        data.Length, ConnectionSettings.PortName, Convert.ToHexString(data));
+                    return true;
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send data to {PortName}", ConnectionSettings.PortName);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 큰 데이터를 청크 단위로 분할하여 전송
+        /// </summary>
+        /// <param name="data">전송할 데이터</param>
+        /// <returns>전송 성공 여부</returns>
+        private async Task<bool> SendDataInChunksAsync(byte[] data)
+        {
+            try
+            {
+                var chunkSize = Math.Min(ConnectionSettings.WriteBufferSize - 100, 1024); // 안전 마진 확보
+                var totalLength = data.Length;
+                var totalChunks = (int)Math.Ceiling((double)totalLength / chunkSize);
+
+                _logger.LogInformation("Sending large data in {ChunkCount} chunks (Total: {TotalBytes} bytes, ChunkSize: {ChunkSize} bytes)", 
+                    totalChunks, totalLength, chunkSize);
+
+                for (int i = 0; i < totalChunks; i++)
+                {
+                    var offset = i * chunkSize;
+                    var currentChunkSize = Math.Min(chunkSize, totalLength - offset);
+                    var chunk = new byte[currentChunkSize];
+                    Array.Copy(data, offset, chunk, 0, currentChunkSize);
+
+                    await Task.Run(() => _serialPort!.Write(chunk, 0, chunk.Length));
+                    
+                    _logger.LogDebug("Sent chunk {ChunkNumber}/{TotalChunks} ({ChunkBytes} bytes): {Data}", 
+                        i + 1, totalChunks, currentChunkSize, Convert.ToHexString(chunk));
+
+                    // 청크 간 짧은 지연으로 수신측에서 처리 시간 확보
+                    if (i < totalChunks - 1)
+                    {
+                        await Task.Delay(10); // 10ms 지연
+                    }
+                }
+
+                _logger.LogInformation("Successfully sent large data ({TotalBytes} bytes) in {ChunkCount} chunks", 
+                    totalLength, totalChunks);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send data in chunks");
                 return false;
             }
         }
@@ -292,6 +351,27 @@ namespace SimpleSerialToApi.Services
             }
 
             return settings;
+        }
+
+        /// <summary>
+        /// 현재 설정된 버퍼 크기 정보 반환
+        /// </summary>
+        /// <returns>버퍼 크기 정보 문자열</returns>
+        public string GetBufferInfo()
+        {
+            return $"ReadBuffer: {ConnectionSettings.ReadBufferSize / 1024.0:F1}KB ({ConnectionSettings.ReadBufferSize} bytes), " +
+                   $"WriteBuffer: {ConnectionSettings.WriteBufferSize / 1024.0:F1}KB ({ConnectionSettings.WriteBufferSize} bytes)";
+        }
+
+        /// <summary>
+        /// 1회 전송 가능한 최대 문자열 길이 반환 (UTF-8 기준)
+        /// </summary>
+        /// <returns>최대 문자 수</returns>
+        public int GetMaxSingleTransmissionLength()
+        {
+            // UTF-8에서 ASCII 문자는 1바이트, 한글 등은 최대 4바이트
+            // 안전하게 ASCII 기준으로 계산 (1바이트/문자)
+            return ConnectionSettings.WriteBufferSize - 100; // 안전 마진 확보
         }
 
         /// <summary>

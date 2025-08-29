@@ -292,6 +292,13 @@ namespace SimpleSerialToApi.Services
 
             if (int.TryParse(GetAppSetting("WriteTimeout"), out var writeTimeout))
                 _applicationConfig.SerialSettings.WriteTimeout = writeTimeout;
+                
+            // 버퍼 크기 설정 로드
+            if (int.TryParse(GetAppSetting("ReadBufferSize"), out var readBufferSize))
+                _applicationConfig.SerialSettings.ReadBufferSize = readBufferSize;
+
+            if (int.TryParse(GetAppSetting("WriteBufferSize"), out var writeBufferSize))
+                _applicationConfig.SerialSettings.WriteBufferSize = writeBufferSize;
         }
 
         private void LoadApiEndpoints()
@@ -401,6 +408,8 @@ namespace SimpleSerialToApi.Services
                         SetAppSettingInConfig(tempConfig, "Handshake", settings.Handshake.ToString());
                         SetAppSettingInConfig(tempConfig, "ReadTimeout", settings.ReadTimeout.ToString());
                         SetAppSettingInConfig(tempConfig, "WriteTimeout", settings.WriteTimeout.ToString());
+                        SetAppSettingInConfig(tempConfig, "ReadBufferSize", settings.ReadBufferSize.ToString());
+                        SetAppSettingInConfig(tempConfig, "WriteBufferSize", settings.WriteBufferSize.ToString());
 
                         tempConfig.Save(ConfigurationSaveMode.Modified);
                         ConfigurationManager.RefreshSection("appSettings");
