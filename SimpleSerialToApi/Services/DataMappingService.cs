@@ -305,6 +305,16 @@ namespace SimpleSerialToApi.Services
         }
 
         /// <summary>
+        /// 파일에서 시나리오들을 다시 로드 (공개 메서드)
+        /// Reload scenarios from file - public method for external reload triggers
+        /// </summary>
+        /// <returns>True if scenarios were successfully loaded from file</returns>
+        public bool ReloadScenariosFromFile()
+        {
+            return LoadScenariosFromFile();
+        }
+
+        /// <summary>
         /// 파일에서 시나리오들을 로드
         /// </summary>
         private bool LoadScenariosFromFile()
@@ -328,6 +338,7 @@ namespace SimpleSerialToApi.Services
                 {
                     _scenarios.Clear();
                     _scenarios.AddRange(scenarios);
+                    _logger.LogInformation("Successfully reloaded {Count} scenarios from file", _scenarios.Count);
                     return true;
                 }
             }
