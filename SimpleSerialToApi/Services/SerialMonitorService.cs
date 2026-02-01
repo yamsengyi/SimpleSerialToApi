@@ -154,6 +154,8 @@ namespace SimpleSerialToApi.Services
                 _messages.Add(message);
                 MessageAdded?.Invoke(this, message);
 
+                // 디버그 로깅 - 실제 모니터 표시와는 별개로 파일 로그(및 DEBUG 모드에서는 콘솔)에 기록됨
+                // 모니터 창에는 message.FormattedMessage가 직접 표시되므로 실제 데이터가 보임
                 _logger.LogDebug("Serial monitor message added: {Message}", message.FormattedMessage);
             }
             catch (Exception ex)
