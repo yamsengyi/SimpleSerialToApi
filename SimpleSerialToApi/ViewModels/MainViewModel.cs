@@ -1483,6 +1483,13 @@ namespace SimpleSerialToApi.ViewModels
                 // 새 창 생성
                 _dataMappingWindow = new Views.DataMappingWindow(this);
                 
+                // 창을 열기 전에 JSON에서 최신 시나리오를 리로드
+                if (_dataMappingService.ReloadScenariosFromFile())
+                {
+                    InitializeMappingScenarios();
+                    _logger.LogInformation("Mapping scenarios reloaded from file when opening DataMappingWindow");
+                }
+                
                 // 창이 닫힐 때 참조를 null로 설정
                 _dataMappingWindow.Closed += (sender, e) => 
                 {
