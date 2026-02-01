@@ -32,7 +32,7 @@ namespace SimpleSerialToApi
                 _startMinimized = e.Args.Contains("--minimized");
 
                 // Serilog 설정
-                // Console sink는 디버깅용으로만 사용하고, 프로덕션에서는 파일 로그만 사용
+                // Console sink는 디버깅용으로만 사용하고, 운영 환경에서는 파일 로그만 사용
                 // 실제 데이터 모니터링은 Serial/API Monitor 창을 통해 수행
                 var logConfig = new LoggerConfiguration()
                     .MinimumLevel.Information()
