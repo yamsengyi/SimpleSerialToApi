@@ -145,6 +145,9 @@ namespace SimpleSerialToApi.ViewModels
             // 모니터 서비스 이벤트 구독
             _serialMonitorService.MessageAdded += OnSerialMonitorMessageAdded;
             _apiMonitorService.MessageAdded += OnApiMonitorMessageAdded;
+            
+            // 설정 변경 이벤트 구독 - JSON 자동 리로드
+            _configurationService.ConfigurationChanged += OnConfigurationChanged;
 
             // ConfigurationService에서 API URL 로드
             LoadApiUrl();
@@ -571,6 +574,40 @@ namespace SimpleSerialToApi.ViewModels
         {
             // UI 스레드에서 QueueCount 업데이트
             System.Windows.Application.Current.Dispatcher.BeginInvoke(UpdateQueueCount);
+        }
+        
+        /// <summary>
+        /// 설정 변경 이벤트 핸들러 - JSON 시나리오를 자동으로 리로드
+        /// Configuration changed event handler - automatically reload JSON scenarios
+        /// </summary>
+        private void OnConfigurationChanged(object? sender, Interfaces.ConfigurationChangedEventArgs e)
+        {
+            try
+            {
+                _logger.LogInformation("Configuration changed: {SectionName} - {Description}", 
+                    e.SectionName, e.ChangeDescription);
+                
+                // JSON 파일에서 시나리오 리로드
+                if (_dataMappingService.ReloadScenariosFromFile())
+                {
+                    // UI 스레드에서 매핑 시나리오 동기화
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                    {
+                        InitializeMappingScenarios();
+                        Status = "Configuration reloaded - mapping scenarios updated from file";
+                        _logger.LogInformation("Mapping scenarios reloaded from file after configuration change");
+                    });
+                }
+                else
+                {
+                    _logger.LogWarning("Configuration changed but no JSON file found to reload scenarios");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling configuration change");
+                Status = "Error reloading configuration";
+            }
         }
         
         private async void OnMappingProcessed(object? sender, MappingProcessedEventArgs e)
@@ -2107,6 +2144,11 @@ namespace SimpleSerialToApi.ViewModels
         {
             try
             {
+                // 이벤트 구독 해제
+                if (_configurationService != null)
+                {
+                    _configurationService.ConfigurationChanged -= OnConfigurationChanged;
+                }
 
                 // 백그라운드 작업 취소
                 if (!_cancellationTokenSource.IsCancellationRequested)
