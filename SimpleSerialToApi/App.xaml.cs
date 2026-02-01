@@ -32,11 +32,21 @@ namespace SimpleSerialToApi
                 _startMinimized = e.Args.Contains("--minimized");
 
                 // Serilog 설정
-                Log.Logger = new LoggerConfiguration()
+                // Console sink는 디버깅용으로만 사용하고, 프로덕션에서는 파일 로그만 사용
+                // 실제 데이터 모니터링은 Serial/API Monitor 창을 통해 수행
+                var logConfig = new LoggerConfiguration()
                     .MinimumLevel.Information()
-                    .WriteTo.Console()
-                    .WriteTo.File("logs/app.log", rollingInterval: RollingInterval.Day)
-                    .CreateLogger();
+                    .WriteTo.File("logs/app.log", 
+                        rollingInterval: RollingInterval.Day,
+                        outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff}] [{Level:u3}] {Message:lj}{NewLine}{Exception}");
+
+#if DEBUG
+                // 디버그 모드에서만 콘솔 출력 활성화
+                logConfig = logConfig.WriteTo.Console(
+                    outputTemplate: "[{Timestamp:HH:mm:ss}] [{Level:u3}] {Message:lj}{NewLine}{Exception}");
+#endif
+
+                Log.Logger = logConfig.CreateLogger();
 
                 Log.Information("Application starting... (StartMinimized: {StartMinimized})", _startMinimized);
 
