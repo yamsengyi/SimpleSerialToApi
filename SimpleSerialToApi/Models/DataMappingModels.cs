@@ -34,14 +34,13 @@ namespace SimpleSerialToApi.Models
         private string _valueTemplate = string.Empty;
         private TransmissionType _transmissionType = TransmissionType.Api;
         private string _apiMethod = "POST";
+        private string _apiUrl = string.Empty;
         private string _apiEndpoint = string.Empty;
         private string _apiHeaders = string.Empty;
         private string _contentType = "application/json";
         private string _authToken = string.Empty;
         private int _timeoutSeconds = 30;
         private int _retryCount = 3;
-        private bool _useFullPath = false;
-        private string _fullPathTemplate = string.Empty;
 
         public bool IsEnabled
         {
@@ -76,13 +75,35 @@ namespace SimpleSerialToApi.Models
         public TransmissionType TransmissionType
         {
             get => _transmissionType;
-            set { _transmissionType = value; OnPropertyChanged(nameof(TransmissionType)); }
+            set
+            {
+                _transmissionType = value;
+                OnPropertyChanged(nameof(TransmissionType));
+                OnPropertyChanged(nameof(IsApiTransmission));
+                OnPropertyChanged(nameof(IsSerialTransmission));
+            }
         }
+
+        /// <summary>
+        /// API 전송 방식일 때 true (Serial 전송 시 관련 컬럼 비활성화 용도)
+        /// </summary>
+        public bool IsApiTransmission => _transmissionType == TransmissionType.Api;
+
+        /// <summary>
+        /// Serial 전송 방식일 때 true
+        /// </summary>
+        public bool IsSerialTransmission => _transmissionType == TransmissionType.Serial;
 
         public string ApiMethod
         {
             get => _apiMethod;
             set { _apiMethod = value; OnPropertyChanged(nameof(ApiMethod)); }
+        }
+
+        public string ApiUrl
+        {
+            get => _apiUrl;
+            set { _apiUrl = value; OnPropertyChanged(nameof(ApiUrl)); }
         }
 
         public string ApiEndpoint
@@ -119,25 +140,6 @@ namespace SimpleSerialToApi.Models
         {
             get => _retryCount;
             set { _retryCount = value; OnPropertyChanged(nameof(RetryCount)); }
-        }
-
-        /// <summary>
-        /// Indicates whether to use full path template with reserved words
-        /// </summary>
-        public bool UseFullPath
-        {
-            get => _useFullPath;
-            set { _useFullPath = value; OnPropertyChanged(nameof(UseFullPath)); }
-        }
-
-        /// <summary>
-        /// Full URL template with reserved words (e.g., http://example.com/api?dn=@deviceId&data={data})
-        /// Reserved words will be replaced before URL encoding
-        /// </summary>
-        public string FullPathTemplate
-        {
-            get => _fullPathTemplate;
-            set { _fullPathTemplate = value; OnPropertyChanged(nameof(FullPathTemplate)); }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

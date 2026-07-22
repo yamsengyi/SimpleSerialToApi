@@ -1,6 +1,7 @@
 <Window x:Class="SimpleSerialToApi.Views.DataMappingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:SimpleSerialToApi.Converters"
         Title="Data Mapping and API Configuration" 
         Width="1000" Height="600"
         MinHeight="500" MinWidth="800"
@@ -9,6 +10,7 @@
     
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+        <local:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
     </Window.Resources>
     
     <Grid Margin="20">
@@ -26,15 +28,19 @@
         <!-- Control Buttons -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,15">
             <Button Content="시나리오 추가" Command="{Binding AddMappingScenarioCommand}" 
-                    Margin="0,0,10,0" Padding="15,8" MinWidth="120"/>
+                    Margin="0,0,10,0" Padding="15,8" MinWidth="110"/>
+            <Button Content="시나리오 복사" Command="{Binding CopyMappingScenarioCommand}" 
+                    Margin="0,0,10,0" Padding="15,8" MinWidth="110"/>
+            <Button Content="▲ 위로" Command="{Binding MoveUpMappingScenarioCommand}" 
+                    Margin="0,0,5,0" Padding="10,8" MinWidth="70"/>
+            <Button Content="▼ 아래로" Command="{Binding MoveDownMappingScenarioCommand}" 
+                    Margin="0,0,20,0" Padding="10,8" MinWidth="70"/>
             <Button Content="선택 삭제" Command="{Binding DeleteMappingScenarioCommand}" 
-                    Margin="0,0,10,0" Padding="15,8" MinWidth="120"/>
+                    Margin="0,0,10,0" Padding="15,8" MinWidth="100"/>
             <Button Content="테스트" Command="{Binding TestMappingCommand}" 
-                    Margin="0,0,20,0" Padding="15,8" MinWidth="120"/>
+                    Margin="0,0,20,0" Padding="15,8" MinWidth="100"/>
             <Button Content="저장" Command="{Binding SaveMappingCommand}" 
-                    Margin="0,0,10,0" Padding="15,8" MinWidth="120" Background="LightBlue"/>
-            <TextBlock Text="예약어: @yyyyMMddHHmmssfff, @yyyyMMddHHmmss, @yyyyMMdd, @deviceId" 
-                       VerticalAlignment="Center" Foreground="Gray" FontSize="11" Margin="20,0,0,0"/>
+                    Margin="0,0,10,0" Padding="15,8" MinWidth="100" Background="LightBlue"/>
         </StackPanel>
         
         <!-- Data Grid -->
@@ -68,7 +74,22 @@
                         </DataGridComboBoxColumn.EditingElementStyle>
                     </DataGridComboBoxColumn>
                     <DataGridTextColumn Header="식별자" Binding="{Binding Identifier}" Width="100"/>
-                    <DataGridTextColumn Header="전송값 템플릿" Binding="{Binding ValueTemplate}" Width="180"/>
+                    <DataGridTemplateColumn Header="전송값 템플릿" Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <TextBox Text="{Binding ValueTemplate, UpdateSourceTrigger=LostFocus}"
+                                             BorderThickness="0" VerticalAlignment="Center"
+                                             x:Name="ValueTextBox"/>
+                                    <TextBlock Text="원본사용" 
+                                               Foreground="Gray" FontStyle="Italic"
+                                               VerticalAlignment="Center" Margin="3,0"
+                                               IsHitTestVisible="False"
+                                               Visibility="{Binding ValueTemplate, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridComboBoxColumn Header="전송 방식" SelectedValueBinding="{Binding TransmissionType}" 
                                             SelectedValuePath="." Width="90">
                         <DataGridComboBoxColumn.ElementStyle>
@@ -82,37 +103,62 @@
                             </Style>
                         </DataGridComboBoxColumn.EditingElementStyle>
                     </DataGridComboBoxColumn>
-                    <DataGridComboBoxColumn Header="API Method" SelectedValueBinding="{Binding ApiMethod}" 
-                                            SelectedValuePath="." Width="80">
-                        <DataGridComboBoxColumn.ElementStyle>
-                            <Style TargetType="ComboBox">
-                                <Setter Property="ItemsSource" Value="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ApiMethods}"/>
-                            </Style>
-                        </DataGridComboBoxColumn.ElementStyle>
-                        <DataGridComboBoxColumn.EditingElementStyle>
-                            <Style TargetType="ComboBox">
-                                <Setter Property="ItemsSource" Value="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ApiMethods}"/>
-                            </Style>
-                        </DataGridComboBoxColumn.EditingElementStyle>
-                    </DataGridComboBoxColumn>
-                    <DataGridTextColumn Header="API Endpoint" Binding="{Binding ApiEndpoint}" Width="150"/>
-                    <DataGridCheckBoxColumn Header="Full Path" Binding="{Binding UseFullPath}" Width="80"/>
-                    <DataGridTextColumn Header="Full Path Template" Binding="{Binding FullPathTemplate}" Width="200"/>
-                    <DataGridTextColumn Header="Headers" Binding="{Binding ApiHeaders}" Width="100"/>
-                    <DataGridComboBoxColumn Header="Content Type" SelectedValueBinding="{Binding ContentType}" 
-                                            SelectedValuePath="." Width="140">
-                        <DataGridComboBoxColumn.ElementStyle>
-                            <Style TargetType="ComboBox">
-                                <Setter Property="ItemsSource" Value="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ContentTypes}"/>
-                            </Style>
-                        </DataGridComboBoxColumn.ElementStyle>
-                        <DataGridComboBoxColumn.EditingElementStyle>
-                            <Style TargetType="ComboBox">
-                                <Setter Property="ItemsSource" Value="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ContentTypes}"/>
-                            </Style>
-                        </DataGridComboBoxColumn.EditingElementStyle>
-                    </DataGridComboBoxColumn>
-                    <DataGridTextColumn Header="Auth Token" Binding="{Binding AuthToken}" Width="100"/>
+                    <DataGridTemplateColumn Header="API Method" Width="80">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <ComboBox ItemsSource="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ApiMethods}"
+                                          SelectedItem="{Binding ApiMethod, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding IsApiTransmission}"
+                                          BorderThickness="0"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="API Url" Width="200">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding ApiUrl, UpdateSourceTrigger=LostFocus}"
+                                         IsEnabled="{Binding IsApiTransmission}"
+                                         BorderThickness="0" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="API Endpoint" Width="200">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding ApiEndpoint, UpdateSourceTrigger=LostFocus}"
+                                         IsEnabled="{Binding IsApiTransmission}"
+                                         BorderThickness="0" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Headers" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding ApiHeaders, UpdateSourceTrigger=LostFocus}"
+                                         IsEnabled="{Binding IsApiTransmission}"
+                                         BorderThickness="0" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Content Type" Width="140">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <ComboBox ItemsSource="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ContentTypes}"
+                                          SelectedItem="{Binding ContentType, UpdateSourceTrigger=PropertyChanged}"
+                                          IsEnabled="{Binding IsApiTransmission}"
+                                          BorderThickness="0"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Auth Token" Width="100">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBox Text="{Binding AuthToken, UpdateSourceTrigger=LostFocus}"
+                                         IsEnabled="{Binding IsApiTransmission}"
+                                         BorderThickness="0" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </ScrollViewer>

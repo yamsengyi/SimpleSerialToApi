@@ -209,17 +209,22 @@ namespace SimpleSerialToApi.Services
         /// <param name="originalData">원본 데이터</param>
         /// <param name="template">처리된 템플릿</param>
         /// <param name="scenario">시나리오</param>
-        /// <returns>최종 처리된 데이터</returns>
+        /// <returns>최종 처리된 데이터 (비어있으면 body 미포함)</returns>
         private async Task<string> ExtractDataFromOriginal(string originalData, string template, DataMappingScenario scenario)
         {
-            // 여기서 원본 데이터에서 특정 값을 추출하여 템플릿에 적용하는 로직을 구현
-            // 예: STX TEMP:25.6 ETX -> 25.6 추출
+            // 템플릿이 비어있으면 body 불필요 (URL의 {data}에서 처리됨)
+            if (string.IsNullOrWhiteSpace(template))
+                return string.Empty;
             
+            var result = template;
+
             // @originalData 예약어가 있으면 원본 데이터로 치환
-            var result = template.Replace("@originalData", originalData);
-            
-            // 추가적인 데이터 추출 로직은 필요에 따라 구현
-            // 예: 정규표현식을 사용한 값 추출 등
+            if (result.Contains("@originalData"))
+                result = result.Replace("@originalData", originalData);
+
+            // {data} 예약어도 동일하게 처리 (URL과 일관성)
+            if (result.Contains("{data}"))
+                result = result.Replace("{data}", originalData);
             
             return result;
         }
@@ -237,29 +242,44 @@ namespace SimpleSerialToApi.Services
                     return;
                 }
 
-                // 파일 로드 실패 시 기본 시나리오들 생성
+                // 파일 로드 실패 시 기본 시나리오들 생성 (디버그 JSON 기준)
                 var defaultScenarios = new[]
                 {
                     new DataMappingScenario
                     {
-                        Name = "Scenario 1",
+                        Name = "INIT_QR",
                         Source = DataSource.Serial,
-                        Identifier = "[01]",
-                        ValueTemplate = "@yyyyMMddHHmmssfff-@deviceId-{value}",
-                        TransmissionType = TransmissionType.Api,
+                        Identifier = "[99]",
+                        ValueTemplate = "[00,@deviceId,@yyyyMMddHHmmss]",
+                        TransmissionType = TransmissionType.Serial,
                         ApiMethod = "POST",
-                        ApiEndpoint = "/api/sensor-data",
+                        ApiUrl = "",
+                        ApiEndpoint = "/api/test2.html",
                         IsEnabled = true
                     },
                     new DataMappingScenario
                     {
-                        Name = "Scenario 2",
+                        Name = "QR_TAG-API",
                         Source = DataSource.Serial,
-                        Identifier = "[99]",
-                        ValueTemplate = "{value}",
+                        Identifier = "[QR",
+                        ValueTemplate = "",
                         TransmissionType = TransmissionType.Api,
                         ApiMethod = "POST",
-                        ApiEndpoint = "/api/test2.html",
+                        ApiUrl = "http://test.2bt.kr:9999",
+                        ApiEndpoint = "/api/v2/dispatches/qr-codes?dn=@deviceId\u0026br={data}",
+                        ContentType = "text/html",
+                        IsEnabled = true
+                    },
+                    new DataMappingScenario
+                    {
+                        Name = "QR_TAG-SERIAL",
+                        Source = DataSource.Serial,
+                        Identifier = "[QR",
+                        ValueTemplate = "[11]",
+                        TransmissionType = TransmissionType.Serial,
+                        ApiMethod = "POST",
+                        ApiUrl = "http://diveinto.space:54321",
+                        ApiEndpoint = "/api/qr_bypasser.aspx",
                         IsEnabled = true
                     }
                 };
