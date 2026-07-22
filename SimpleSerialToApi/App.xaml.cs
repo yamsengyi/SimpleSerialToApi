@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SimpleSerialToApi.Services;
 using SimpleSerialToApi.Services.Queues;
+using SimpleSerialToApi.Facades;
 using SimpleSerialToApi.ViewModels;
 using SimpleSerialToApi.Interfaces;
 using SimpleSerialToApi.Models;
@@ -18,6 +19,7 @@ namespace SimpleSerialToApi
     {
         private ServiceProvider? _serviceProvider;
         private TrayIconService? _trayIconService;
+        private MainWindow? _mainWindow;
         private bool _startMinimized = false;
         
         public ServiceProvider? ServiceProvider => _serviceProvider;
@@ -50,46 +52,6 @@ namespace SimpleSerialToApi
 
                 Log.Information("Application starting... (StartMinimized: {StartMinimized})", _startMinimized);
 
-                // USB 시리얼 통신을 위한 관리자 권한 자동 시작 등록 (작업 스케줄러 사용)
-                try
-                {
-                    var startupService = new StartupService(Microsoft.Extensions.Logging.Abstractions.NullLogger<StartupService>.Instance);
-                    
-                    // 기존 레지스트리 방식 확인
-                    var currentRegistryCommand = startupService.GetStartupCommand();
-                    var isTaskSchedulerEnabled = startupService.IsStartupWithAdminEnabled();
-                    
-                    Log.Information("Startup status - Registry: {Registry}, TaskScheduler: {TaskScheduler}", 
-                        currentRegistryCommand ?? "Not set", isTaskSchedulerEnabled);
-                    
-                    if (!isTaskSchedulerEnabled)
-                    {
-                        Log.Information("Registering for admin startup via Task Scheduler for USB serial access...");
-                        var success = startupService.EnableStartupWithAdmin(true);
-                        Log.Information("Task Scheduler registration result: {Success}", success);
-                        
-                        if (success)
-                        {
-                            Log.Information("Successfully registered for admin startup via Task Scheduler");
-                        }
-                        else
-                        {
-                            Log.Warning("Task Scheduler registration failed, falling back to registry method");
-                            // Fallback to registry method if Task Scheduler fails
-                            var registrySuccess = startupService.EnableStartup(true);
-                            Log.Information("Registry fallback result: {Success}", registrySuccess);
-                        }
-                    }
-                    else
-                    {
-                        Log.Information("Application already registered for admin startup via Task Scheduler");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Failed to check/register admin startup, continuing anyway");
-                }
-
                 // 서비스 컨테이너 설정
                 var services = new ServiceCollection();
                 ConfigureServices(services);
@@ -103,6 +65,7 @@ namespace SimpleSerialToApi
 
                 // 메인 윈도우 시작
                 var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+                _mainWindow = mainWindow;
                 Log.Information("MainWindow created");
                 
                 // 트레이 아이콘에 윈도우 연결 (표시 전에 먼저 연결)
@@ -160,7 +123,6 @@ namespace SimpleSerialToApi
             services.AddSingleton<SerialCommunicationService>();
             services.AddSingleton<SimpleQueueService>();
             services.AddSingleton<SimpleHttpService>();
-            services.AddSingleton<TimerService>();
 
             // Queue Management System
             services.AddSingleton<IQueueManager, QueueManager>();
@@ -180,6 +142,15 @@ namespace SimpleSerialToApi
             services.AddSingleton<TrayIconService>();
             services.AddSingleton<StartupService>();
 
+            // ─── Facades (리팩토링 v2: MainViewModel 책임 분산) ───
+            services.AddSingleton<ISimulationFacade, SimulationFacade>();
+            services.AddSingleton<IConfigurationFacade, ConfigurationFacade>();
+            services.AddSingleton<IMonitorFacade, MonitorFacade>();
+            services.AddSingleton<ISerialConnectionFacade, SerialConnectionFacade>();
+            services.AddSingleton<IDataMappingFacade, DataMappingFacade>();
+            services.AddSingleton<IWindowManagementFacade, WindowManagementFacade>();
+            services.AddSingleton<IDataTransmissionFacade, DataTransmissionFacade>();
+
             // ViewModels
             services.AddTransient<MainViewModel>();
 
@@ -193,11 +164,9 @@ namespace SimpleSerialToApi
             {
                 Log.Information("Application shutting down...");
 
-                // MainViewModel Dispose (through ServiceProvider) with timeout
-                var mainViewModel = _serviceProvider?.GetService<MainViewModel>();
-                if (mainViewModel != null)
+                if (_mainWindow?.DataContext is IDisposable disposableViewModel)
                 {
-                    var disposeTask = Task.Run(() => mainViewModel.Dispose());
+                    var disposeTask = Task.Run(disposableViewModel.Dispose);
                     if (!disposeTask.Wait(TimeSpan.FromSeconds(10)))
                     {
                         Log.Warning("MainViewModel disposal timed out");
@@ -209,9 +178,6 @@ namespace SimpleSerialToApi
 
                 // 서비스 컨테이너 정리
                 _serviceProvider?.Dispose();
-
-                // 강제 종료 처리
-                Environment.Exit(0);
 
                 Log.Information("Application shutdown complete");
             }
