@@ -10,7 +10,8 @@ namespace SimpleSerialToApi.Services
     public class SimpleQueueService
     {
         private readonly ConcurrentQueue<string> _queue = new();
-        private readonly object _lock = new object();
+        private readonly List<byte> _frameBuffer = new();
+        private readonly object _frameLock = new object();
 
         /// <summary>
         /// 큐에 데이터 추가
@@ -73,44 +74,68 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         public void ParseAndEnqueue(byte[] rawData)
         {
-            var dataString = System.Text.Encoding.UTF8.GetString(rawData);
-            var messages = ParseMessages(dataString);
-            
-            foreach (var message in messages)
+            foreach (var message in ExtractMessages(rawData))
             {
                 Enqueue(message);
             }
         }
 
         /// <summary>
-        /// STX(0x02)와 ETX(0x03) 사이의 메시지 추출
+        /// 수신 이벤트 경계를 넘어 STX(0x02)와 ETX(0x03) 사이의 완전한 메시지를 추출합니다.
         /// </summary>
-        private List<string> ParseMessages(string data)
+        public IReadOnlyList<string> ExtractMessages(byte[] rawData)
         {
             var messages = new List<string>();
-            const char STX = (char)0x02;
-            const char ETX = (char)0x03;
-
-            int startIndex = 0;
-            while (startIndex < data.Length)
+            if (rawData == null || rawData.Length == 0)
             {
-                int stxIndex = data.IndexOf(STX, startIndex);
-                if (stxIndex == -1) break;
+                return messages;
+            }
 
-                int etxIndex = data.IndexOf(ETX, stxIndex + 1);
-                if (etxIndex == -1) break;
+            lock (_frameLock)
+            {
+                _frameBuffer.AddRange(rawData);
 
-                // STX와 ETX 사이의 데이터 추출
-                string message = data.Substring(stxIndex + 1, etxIndex - stxIndex - 1);
-                if (!string.IsNullOrEmpty(message))
+                while (true)
                 {
-                    messages.Add(message);
-                }
+                    var stxIndex = _frameBuffer.IndexOf(0x02);
+                    if (stxIndex < 0)
+                    {
+                        _frameBuffer.Clear();
+                        break;
+                    }
 
-                startIndex = etxIndex + 1;
+                    if (stxIndex > 0)
+                    {
+                        _frameBuffer.RemoveRange(0, stxIndex);
+                    }
+
+                    var etxIndex = _frameBuffer.IndexOf(0x03, 1);
+                    if (etxIndex < 0)
+                    {
+                        break;
+                    }
+
+                    if (etxIndex > 1)
+                    {
+                        messages.Add(System.Text.Encoding.UTF8.GetString(_frameBuffer.GetRange(1, etxIndex - 1).ToArray()));
+                    }
+
+                    _frameBuffer.RemoveRange(0, etxIndex + 1);
+                }
             }
 
             return messages;
+        }
+
+        public bool IsFrameInProgress
+        {
+            get
+            {
+                lock (_frameLock)
+                {
+                    return _frameBuffer.Count > 0;
+                }
+            }
         }
     }
 }
