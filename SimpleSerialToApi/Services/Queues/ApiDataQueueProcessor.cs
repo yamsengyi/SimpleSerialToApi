@@ -94,7 +94,7 @@ namespace SimpleSerialToApi.Services.Queues
                 var fullUrl = endpoint.Url.TrimEnd('/');
                 if (!string.IsNullOrEmpty(apiData.ApiEndpoint))
                 {
-                    var apiEndpoint = apiData.ApiEndpoint.TrimStart('/');
+                    var apiEndpoint = apiData.ApiEndpoint.Trim();
                     
                     // Path가 완전한 URL인지 확인 (http:// 또는 https://로 시작)
                     if (apiEndpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || 
@@ -103,10 +103,16 @@ namespace SimpleSerialToApi.Services.Queues
                         // FullPath가 완전한 URL인 경우 그대로 사용
                         fullUrl = apiEndpoint;
                     }
+                    // Path가 호스트명처럼 보이는 경우 (예: "host.com/path", "hostname:port/path")
+                    // 프로토콜이 없는 전체 URL로 간주
+                    else if (LooksLikeHostUrl(apiEndpoint))
+                    {
+                        fullUrl = $"http://{apiEndpoint.TrimStart('/')}";
+                    }
                     else
                     {
                         // 상대 경로인 경우 기본 URL과 조합
-                        fullUrl = $"{fullUrl}/{apiEndpoint}";
+                        fullUrl = $"{fullUrl}/{apiEndpoint.TrimStart('/')}";
                     }
                 }
 
@@ -226,7 +232,15 @@ namespace SimpleSerialToApi.Services.Queues
                         payloadContent = string.Empty;
                     }
 
-                    requestMessage.Content = new StringContent(payloadContent, Encoding.UTF8, contentType);
+                    // body 내용이 있을 때만 Content 설정 (POST/PUT이지만 body 없이 전송)
+                    if (!string.IsNullOrEmpty(payloadContent))
+                    {
+                        requestMessage.Content = new StringContent(payloadContent, Encoding.UTF8, contentType);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Skipping request body for {Method} {Url} - no data content", httpMethod, fullUrl);
+                    }
 
                     // 전송 직전 로깅 - FULL PATH와 실제 전송 데이터 확인
                 }
@@ -360,6 +374,20 @@ namespace SimpleSerialToApi.Services.Queues
                    statusCode == System.Net.HttpStatusCode.GatewayTimeout ||
                    statusCode == System.Net.HttpStatusCode.TooManyRequests ||
                    statusCode == System.Net.HttpStatusCode.RequestTimeout;
+        }
+
+        /// <summary>
+        /// 주어진 경로가 호스트 URL 형태인지 확인 (예: "host.com/path", "host:port/path")
+        /// </summary>
+        private static bool LooksLikeHostUrl(string path)
+        {
+            // 호스트 부분 추출 (첫 번째 '/' 이전까지)
+            var firstSlash = path.IndexOf('/');
+            var hostPart = firstSlash >= 0 ? path.Substring(0, firstSlash) : path;
+
+            // 호스트명 패턴: 점(.)을 포함하거나 "host:port" 형식
+            return hostPart.Contains('.') ||
+                   (hostPart.Contains(':') && hostPart.IndexOf(':') < hostPart.Length - 1);
         }
     }
 }

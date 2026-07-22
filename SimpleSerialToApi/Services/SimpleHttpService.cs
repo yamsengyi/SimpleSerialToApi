@@ -61,9 +61,19 @@ namespace SimpleSerialToApi.Services
             {
                 // 파일 로그: 요청
                 await _apiFileLogService.LogRequestAsync(requestId, "POST", _apiUrl, data, contentType);
-                
-                var content = new StringContent(data ?? string.Empty, Encoding.UTF8, contentType);
-                var response = await _httpClient.PostAsync(_apiUrl, content);
+
+                HttpResponseMessage response;
+                if (string.IsNullOrEmpty(data))
+                {
+                    // body 없이 POST 요청 전송
+                    var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl);
+                    response = await _httpClient.SendAsync(request);
+                }
+                else
+                {
+                    var content = new StringContent(data, Encoding.UTF8, contentType);
+                    response = await _httpClient.PostAsync(_apiUrl, content);
+                }
                 
                 stopwatch.Stop();
 

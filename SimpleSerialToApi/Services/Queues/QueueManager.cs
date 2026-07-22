@@ -404,8 +404,8 @@ namespace SimpleSerialToApi.Services.Queues
                     return false;
                 }
 
-                // Use reflection to call Clear method on the queue
-                var clearMethod = queueObj.GetType().GetMethod("Clear");
+                // Queue implementations expose the asynchronous ClearAsync contract.
+                var clearMethod = queueObj.GetType().GetMethod("ClearAsync");
                 if (clearMethod != null)
                 {
                     var result = clearMethod.Invoke(queueObj, null);
