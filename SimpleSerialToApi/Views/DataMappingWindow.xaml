@@ -60,6 +60,7 @@
                 <DataGrid.Columns>
                     <DataGridCheckBoxColumn Header="활성화" Binding="{Binding IsEnabled}" Width="60"/>
                     <DataGridTextColumn Header="시나리오 이름" Binding="{Binding Name}" Width="120"/>
+                    <DataGridTextColumn Header="우선도" Binding="{Binding Priority, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                     <DataGridComboBoxColumn Header="데이터 소스" SelectedValueBinding="{Binding Source}" 
                                             SelectedValuePath="." Width="100">
                         <DataGridComboBoxColumn.ElementStyle>
