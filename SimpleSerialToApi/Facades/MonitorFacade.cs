@@ -32,6 +32,7 @@ namespace SimpleSerialToApi.Facades
         private int _serialMessageCount = 0;
         private int _apiRequestCount = 0;
         private int _apiSuccessCount = 0;
+        private readonly object _serialMonitorLock = new();
 
         public List<string> SerialMonitorFilters { get; } = new() { "All", "Data", "Errors", "Commands" };
         public List<string> ApiMonitorFilters { get; } = new() { "All", "2xx", "4xx", "5xx", "GET", "POST", "PUT", "DELETE" };
@@ -112,38 +113,41 @@ namespace SimpleSerialToApi.Facades
 
         public void OnSerialMonitorMessageAdded(MonitorMessage message)
         {
-            SerialMonitorText += message.FormattedMessage + Environment.NewLine;
-            _serialMessageCount++;
-            OnPropertyChanged(nameof(SerialMessageCount));
+            LoadExistingSerialMessages();
         }
 
         public void OnApiMonitorMessageAdded(ApiMonitorMessage message)
         {
-            ApiMonitorText += message.FormattedMessage + Environment.NewLine;
-            if (message.IsCompleted)
-            {
-                _apiRequestCount++;
-                if (message.StatusCode.HasValue &&
-                    (int)message.StatusCode.Value >= 200 && (int)message.StatusCode.Value < 300)
-                {
-                    _apiSuccessCount++;
-                }
-                OnPropertyChanged(nameof(ApiRequestCount));
-                OnPropertyChanged(nameof(ApiSuccessRate));
-            }
+            LoadExistingApiMessages();
         }
 
         public void ClearSerialMonitor()
         {
-            _serialMonitorService.Clear();
-            SerialMonitorText = string.Empty;
-            _serialMessageCount = 0;
-            OnPropertyChanged(nameof(SerialMessageCount));
+            lock (_serialMonitorLock)
+            {
+                _serialMonitorService.Clear();
+                ResetSerialMonitorDisplay();
+            }
         }
 
         public void ClearApiMonitor()
         {
             _apiMonitorService.Clear();
+            ResetApiMonitorDisplay();
+        }
+
+        public void ResetSerialMonitorDisplay()
+        {
+            lock (_serialMonitorLock)
+            {
+                SerialMonitorText = string.Empty;
+                _serialMessageCount = 0;
+                OnPropertyChanged(nameof(SerialMessageCount));
+            }
+        }
+
+        public void ResetApiMonitorDisplay()
+        {
             ApiMonitorText = string.Empty;
             _apiRequestCount = 0;
             _apiSuccessCount = 0;
@@ -186,13 +190,16 @@ namespace SimpleSerialToApi.Facades
             try
             {
                 var messages = _serialMonitorService.Messages;
-                SerialMonitorText = string.Join(Environment.NewLine,
+                var content = string.Join(Environment.NewLine,
                     messages.Where(m => m?.FormattedMessage != null)
                            .Select(m => m.FormattedMessage));
-                if (!string.IsNullOrEmpty(SerialMonitorText))
-                    SerialMonitorText += Environment.NewLine;
-                _serialMessageCount = messages.Count;
-                OnPropertyChanged(nameof(SerialMessageCount));
+
+                lock (_serialMonitorLock)
+                {
+                    SerialMonitorText = content;
+                    _serialMessageCount = messages.Count;
+                    OnPropertyChanged(nameof(SerialMessageCount));
+                }
             }
             catch (Exception ex)
             {

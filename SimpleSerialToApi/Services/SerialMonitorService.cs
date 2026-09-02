@@ -25,6 +25,12 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         public event EventHandler<MonitorMessage>? MessageAdded;
 
+
+        /// <summary>
+        /// 전체 로그가 비워진 이벤트
+        /// </summary>
+        public event EventHandler? Cleared;
+
         public SerialMonitorService(ILogger<SerialMonitorService> logger)
         {
             _logger = logger;
@@ -35,7 +41,16 @@ namespace SimpleSerialToApi.Services
         /// <summary>
         /// 모니터 메시지 목록 (읽기 전용)
         /// </summary>
-        public IReadOnlyList<MonitorMessage> Messages => _messages.ToList().AsReadOnly();
+        public IReadOnlyList<MonitorMessage> Messages
+        {
+            get
+            {
+                lock (_messages)
+                {
+                    return _messages.ToList().AsReadOnly();
+                }
+            }
+        }
 
         /// <summary>
         /// 모니터링 활성화 상태
@@ -145,13 +160,16 @@ namespace SimpleSerialToApi.Services
         {
             try
             {
-                // 최대 메시지 수 제한
-                while (_messages.Count >= _maxMessages)
+                lock (_messages)
                 {
-                    _messages.RemoveAt(0);
-                }
+                    // 최대 메시지 수 제한
+                    while (_messages.Count >= _maxMessages)
+                    {
+                        _messages.RemoveAt(0);
+                    }
 
-                _messages.Add(message);
+                    _messages.Add(message);
+                }
                 MessageAdded?.Invoke(this, message);
 
                 // 디버그 로깅 - 실제 모니터 표시와는 별개로 파일 로그(및 DEBUG 모드에서는 콘솔)에 기록됨
@@ -169,7 +187,11 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         public void Clear()
         {
-            _messages.Clear();
+            lock (_messages)
+            {
+                _messages.Clear();
+            }
+            Cleared?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>

@@ -454,13 +454,18 @@ namespace SimpleSerialToApi.ViewModels
 
             ClearLogsCommand = new RelayCommand(() =>
             {
-                _dataTransmissionFacade.ClearLogs();
+                _ = ClearLogsAsync();
+            });
+
+            async Task ClearLogsAsync()
+            {
+                await _dataTransmissionFacade.ClearLogsAsync();
                 System.Windows.MessageBox.Show(
-                    "모든 모니터 로그가 성공적으로 삭제되었습니다.",
+                    "메시지 큐와 모든 모니터 로그가 성공적으로 삭제되었습니다.",
                     "로그 클리어",
                     System.Windows.MessageBoxButton.OK,
                     MessageBoxImage.Information);
-            });
+            }
         }
 
         private void SubscribeServiceEvents()
@@ -494,12 +499,27 @@ namespace SimpleSerialToApi.ViewModels
                 System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
                     _monitorFacade.OnSerialMonitorMessageAdded(msg));
             };
+            serialMonitorService.Cleared += (_, _) =>
+            {
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                    _monitorFacade.ResetSerialMonitorDisplay());
+            };
 
             var apiMonitorService = GetApiMonitorService();
             apiMonitorService.MessageAdded += (_, msg) =>
             {
                 System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
                     _monitorFacade.OnApiMonitorMessageAdded(msg));
+            };
+            apiMonitorService.MessageUpdated += (_, msg) =>
+            {
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                    _monitorFacade.OnApiMonitorMessageAdded(msg));
+            };
+            apiMonitorService.Cleared += (_, _) =>
+            {
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                    _monitorFacade.ResetApiMonitorDisplay());
             };
         }
 
@@ -530,7 +550,15 @@ namespace SimpleSerialToApi.ViewModels
             if (_monitorFacade is INotifyPropertyChanged monNpc)
                 monNpc.PropertyChanged += (_, e) =>
                 {
-                    if (e.PropertyName == nameof(IMonitorFacade.SerialMessageCount))
+                    if (e.PropertyName == nameof(IMonitorFacade.SerialMonitorText))
+                        OnPropertyChanged(nameof(SerialMonitorText));
+                    else if (e.PropertyName == nameof(IMonitorFacade.ApiMonitorText))
+                        OnPropertyChanged(nameof(ApiMonitorText));
+                    else if (e.PropertyName == nameof(IMonitorFacade.SerialMonitorAutoScroll))
+                        OnPropertyChanged(nameof(SerialMonitorAutoScroll));
+                    else if (e.PropertyName == nameof(IMonitorFacade.ApiMonitorAutoScroll))
+                        OnPropertyChanged(nameof(ApiMonitorAutoScroll));
+                    else if (e.PropertyName == nameof(IMonitorFacade.SerialMessageCount))
                         OnPropertyChanged(nameof(SerialMessageCount));
                     else if (e.PropertyName == nameof(IMonitorFacade.ApiRequestCount))
                         OnPropertyChanged(nameof(ApiRequestCount));

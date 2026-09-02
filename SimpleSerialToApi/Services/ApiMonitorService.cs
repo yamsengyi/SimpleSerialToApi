@@ -27,6 +27,16 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         public event EventHandler<ApiMonitorMessage>? MessageAdded;
 
+        /// <summary>
+        /// 기존 API 메시지 갱신 이벤트
+        /// </summary>
+        public event EventHandler<ApiMonitorMessage>? MessageUpdated;
+
+        /// <summary>
+        /// 전체 로그가 비워진 이벤트
+        /// </summary>
+        public event EventHandler? Cleared;
+
         public ApiMonitorService(ILogger<ApiMonitorService> logger)
         {
             _logger = logger;
@@ -37,7 +47,16 @@ namespace SimpleSerialToApi.Services
         /// <summary>
         /// API 모니터 메시지 목록 (읽기 전용)
         /// </summary>
-        public IReadOnlyList<ApiMonitorMessage> Messages => _messages.ToList().AsReadOnly();
+        public IReadOnlyList<ApiMonitorMessage> Messages
+        {
+            get
+            {
+                lock (_messagesLock)
+                {
+                    return _messages.ToList().AsReadOnly();
+                }
+            }
+        }
 
         /// <summary>
         /// 모니터링 활성화 상태
@@ -90,6 +109,8 @@ namespace SimpleSerialToApi.Services
         {
             if (!_isEnabled) return;
 
+            ApiMonitorMessage? updatedMessage = null;
+
             lock (_messagesLock)
             {
                 // 기존 요청 메시지를 찾아서 응답 정보 업데이트
@@ -102,6 +123,7 @@ namespace SimpleSerialToApi.Services
                     requestMessage.ResponseTime = responseTime;
                     requestMessage.ResponseTimestamp = DateTime.Now;
                     requestMessage.IsCompleted = true;
+                    updatedMessage = requestMessage;
                 }
                 else
                 {
@@ -121,6 +143,11 @@ namespace SimpleSerialToApi.Services
                     AddMessage(responseMessage);
                 }
             }
+
+            if (updatedMessage != null)
+            {
+                MessageUpdated?.Invoke(this, updatedMessage);
+            }
         }
 
         /// <summary>
@@ -132,25 +159,36 @@ namespace SimpleSerialToApi.Services
         {
             if (!_isEnabled) return;
 
-            var requestMessage = _messages.FirstOrDefault(m => m.RequestId == requestId);
-            if (requestMessage != null)
-            {
-                requestMessage.ErrorMessage = error.Message;
-                requestMessage.IsCompleted = true;
-                requestMessage.ResponseTimestamp = DateTime.Now;
-            }
-            else
-            {
-                var errorMessage = new ApiMonitorMessage
-                {
-                    RequestId = requestId,
-                    Timestamp = DateTime.Now,
-                    ErrorMessage = error.Message,
-                    Direction = MessageDirection.Receive,
-                    IsCompleted = true
-                };
+            ApiMonitorMessage? updatedMessage = null;
 
-                AddMessage(errorMessage);
+            lock (_messagesLock)
+            {
+                var requestMessage = _messages.FirstOrDefault(m => m.RequestId == requestId);
+                if (requestMessage != null)
+                {
+                    requestMessage.ErrorMessage = error.Message;
+                    requestMessage.IsCompleted = true;
+                    requestMessage.ResponseTimestamp = DateTime.Now;
+                    updatedMessage = requestMessage;
+                }
+                else
+                {
+                    var errorMessage = new ApiMonitorMessage
+                    {
+                        RequestId = requestId,
+                        Timestamp = DateTime.Now,
+                        ErrorMessage = error.Message,
+                        Direction = MessageDirection.Receive,
+                        IsCompleted = true
+                    };
+
+                    AddMessage(errorMessage);
+                }
+            }
+
+            if (updatedMessage != null)
+            {
+                MessageUpdated?.Invoke(this, updatedMessage);
             }
         }
 
@@ -189,7 +227,11 @@ namespace SimpleSerialToApi.Services
         /// </summary>
         public void Clear()
         {
-            _messages.Clear();
+            lock (_messagesLock)
+            {
+                _messages.Clear();
+            }
+            Cleared?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>

@@ -44,6 +44,7 @@
                       HorizontalScrollBarVisibility="Auto">
             <TextBox Name="SerialMonitorTextBox" 
                      Text="{Binding SerialMonitorText}" 
+                     TextChanged="SerialMonitorTextBox_TextChanged"
                      IsReadOnly="True"
                      TextWrapping="NoWrap" 
                      FontFamily="Consolas" 

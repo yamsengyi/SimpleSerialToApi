@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using SimpleSerialToApi.ViewModels;
 
 namespace SimpleSerialToApi.Views
 {
@@ -19,6 +21,12 @@ namespace SimpleSerialToApi.Views
         public SerialMonitorWindow(object dataContext) : this()
         {
             DataContext = dataContext;
+        }
+
+        private void SerialMonitorTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (DataContext is MainViewModel viewModel && viewModel.SerialMonitorAutoScroll)
+                SerialMonitorTextBox.ScrollToEnd();
         }
     }
 }

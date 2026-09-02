@@ -10,6 +10,8 @@ namespace SimpleSerialToApi.Facades
         void SaveApiMonitor();
         void ClearSerialMonitor();
         void ClearApiMonitor();
+        void ResetSerialMonitorDisplay();
+        void ResetApiMonitorDisplay();
         void LoadExistingSerialMessages();
         void LoadExistingApiMessages();
 
