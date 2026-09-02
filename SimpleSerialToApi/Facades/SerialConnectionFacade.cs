@@ -19,7 +19,7 @@ namespace SimpleSerialToApi.Facades
         private readonly SerialCommunicationService _serialService;
         private readonly ComPortDiscoveryService _comPortDiscovery;
 
-        private string _serialPort = "COM1";
+        private string _serialPort;
         private bool _isConnected;
         private ObservableCollection<ComPortInfo> _availablePorts = new();
 
@@ -31,6 +31,7 @@ namespace SimpleSerialToApi.Facades
             _logger = logger;
             _serialService = serialService;
             _comPortDiscovery = comPortDiscovery;
+            _serialPort = _serialService.ConnectionSettings.PortName;
         }
 
         public string SerialPort
@@ -127,6 +128,12 @@ namespace SimpleSerialToApi.Facades
 
         public void InitializeSmartPortSelection()
         {
+            if (_availablePorts.Any(p => p.PortName == SerialPort))
+            {
+                _logger.LogInformation("Using configured COM port: {Port}", SerialPort);
+                return;
+            }
+
             PerformSmartSelection();
         }
 

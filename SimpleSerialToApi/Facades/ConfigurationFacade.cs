@@ -160,19 +160,29 @@ namespace SimpleSerialToApi.Facades
         {
             try
             {
-                if (!string.IsNullOrWhiteSpace(DeviceId))
+                var normalizedDeviceId = DeviceId?.Trim() ?? string.Empty;
+
+                var config = System.Configuration.ConfigurationManager.OpenExeConfiguration(
+                    System.Configuration.ConfigurationUserLevel.None);
+
+                var settings = config.AppSettings.Settings;
+                if (settings["DeviceId"] == null)
                 {
-                    var config = System.Configuration.ConfigurationManager.OpenExeConfiguration(
-                        System.Configuration.ConfigurationUserLevel.None);
-                    config.AppSettings.Settings["DeviceId"].Value = DeviceId;
-                    config.Save(System.Configuration.ConfigurationSaveMode.Modified);
-                    System.Configuration.ConfigurationManager.RefreshSection("appSettings");
-                    _logger.LogInformation("Device ID set to '{DeviceId}'", DeviceId);
+                    settings.Add("DeviceId", normalizedDeviceId);
                 }
                 else
                 {
-                    _logger.LogWarning("Attempted to set empty Device ID");
+                    settings["DeviceId"].Value = normalizedDeviceId;
                 }
+
+                config.Save(System.Configuration.ConfigurationSaveMode.Modified);
+                System.Configuration.ConfigurationManager.RefreshSection("appSettings");
+
+                _logger.LogInformation(
+                    normalizedDeviceId.Length == 0
+                        ? "Device ID cleared from configuration"
+                        : "Device ID set to '{DeviceId}'",
+                    normalizedDeviceId);
             }
             catch (Exception ex)
             {
@@ -184,7 +194,7 @@ namespace SimpleSerialToApi.Facades
         {
             try
             {
-                var currentSettings = _configurationService.ApplicationConfig.SerialSettings;
+                var currentSettings = _serialService.ConnectionSettings;
                 var window = new Views.SerialConfigWindow(currentSettings);
                 var result = window.ShowDialog();
 
