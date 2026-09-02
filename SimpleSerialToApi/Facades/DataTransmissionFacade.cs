@@ -189,6 +189,11 @@ namespace SimpleSerialToApi.Facades
                     MaxSize = 1000,
                     BatchSize = 10,
                     BatchTimeoutMs = 1000,
+                    ProcessingIntervalMs = int.TryParse(
+                        System.Configuration.ConfigurationManager.AppSettings["QueueTransmissionInterval"],
+                        out var intervalSeconds) && intervalSeconds > 0
+                        ? intervalSeconds * 1000
+                        : 5000,
                     RetryCount = 3,
                     RetryIntervalMs = 5000,
                     EnablePriority = false,
@@ -228,10 +233,11 @@ namespace SimpleSerialToApi.Facades
             }
         }
 
-        public void ClearLogs()
+        public async Task ClearLogsAsync()
         {
             try
             {
+                await ClearQueueAsync();
                 _serialMonitorService.ClearLogs();
                 _apiMonitorService.ClearLogs();
             }
@@ -241,6 +247,11 @@ namespace SimpleSerialToApi.Facades
             }
         }
 
+        public void ClearLogs()
+        {
+            ClearLogsAsync().GetAwaiter().GetResult();
+        }
+
         private async Task ProcessApiTransmission(Services.MappingResult result, DataMappingScenario scenario)
         {
             try
@@ -248,7 +259,7 @@ namespace SimpleSerialToApi.Facades
                 var apiData = new MappedApiData
                 {
                     EndpointName = "default",
-                    ApiEndpoint = _dataMappingFacade.GetApiEndpointForScenario(scenario, result.ProcessedData),
+                    ApiEndpoint = _dataMappingFacade.GetApiEndpointForScenario(scenario, result.OriginalData),
                     ApiMethod = scenario.ApiMethod ?? "POST",
                     ContentType = scenario.ContentType ?? "application/json",
                     Payload = new Dictionary<string, object>
@@ -285,10 +296,14 @@ namespace SimpleSerialToApi.Facades
                 var queue = _queueManager.GetQueue<MappedApiData>("ApiDataQueue");
                 if (queue != null)
                 {
+                    var resolvedApiEndpoint = _dataMappingFacade.GetApiEndpointForScenario(scenario, result.OriginalData);
+                    apiData.ApiEndpoint = resolvedApiEndpoint;
+                    queueMessage.Payload = apiData;
+
                     await queue.EnqueueAsync(queueMessage);
 
                     var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod,
-                        scenario.ApiEndpoint ?? "unknown", result.ProcessedData);
+                        resolvedApiEndpoint, result.ProcessedData);
                     _apiMonitorService.LogApiResponse(requestId, System.Net.HttpStatusCode.Accepted,
                         "Queued for processing", null, 0);
                 }
@@ -309,9 +324,9 @@ namespace SimpleSerialToApi.Facades
         {
             try
             {
-                var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod, result.ApiEndpoint, result.ProcessedData);
-
-                var apiUrl = _dataMappingFacade.GetApiEndpointForScenario(scenario, result.ProcessedData);
+                var apiUrl = _dataMappingFacade.GetApiEndpointForScenario(scenario, result.OriginalData);
+                _httpService.SetApiUrl(apiUrl);
+                var requestId = _apiMonitorService.LogApiRequest(result.ApiMethod, apiUrl, result.ProcessedData);
 
                 var startTime = DateTime.Now;
                 bool success = await _httpService.SendJsonAsync(result.ProcessedData);

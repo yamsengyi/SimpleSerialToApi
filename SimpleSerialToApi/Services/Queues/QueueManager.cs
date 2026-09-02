@@ -29,6 +29,7 @@ namespace SimpleSerialToApi.Services.Queues
         private readonly ConcurrentDictionary<string, object> _queues;
         private readonly ConcurrentDictionary<string, QueueProcessorWrapper> _processors;
         private readonly ConcurrentDictionary<string, Type> _queueTypes;
+        private readonly ConcurrentDictionary<string, QueueHealthStatus> _queueHealthStatuses;
         private volatile bool _disposed = false;
 
         /// <summary>
@@ -69,6 +70,7 @@ namespace SimpleSerialToApi.Services.Queues
             _queues = new ConcurrentDictionary<string, object>();
             _processors = new ConcurrentDictionary<string, QueueProcessorWrapper>();
             _queueTypes = new ConcurrentDictionary<string, Type>();
+            _queueHealthStatuses = new ConcurrentDictionary<string, QueueHealthStatus>();
         }
 
         /// <summary>
@@ -133,6 +135,7 @@ namespace SimpleSerialToApi.Services.Queues
 
             _queueTypes.TryAdd(queueName, typeof(T));
             QueueCreated?.Invoke(this, queueName);
+            UpdateQueueHealthState(queueName);
 
             return queue;
         }
@@ -223,6 +226,7 @@ namespace SimpleSerialToApi.Services.Queues
             });
 
             ProcessingStarted?.Invoke(this, queueName);
+            UpdateQueueHealthState(queueName);
             return true;
         }
 
@@ -258,6 +262,7 @@ namespace SimpleSerialToApi.Services.Queues
                 }
 
                 ProcessingStopped?.Invoke(this, queueName);
+                UpdateQueueHealthState(queueName);
                 return true;
             }
 
@@ -274,6 +279,13 @@ namespace SimpleSerialToApi.Services.Queues
             if (string.IsNullOrEmpty(queueName))
                 return QueueHealthStatus.Unhealthy;
 
+            var status = EvaluateQueueHealth(queueName);
+            UpdateQueueHealthState(queueName, status);
+            return status;
+        }
+
+        private QueueHealthStatus EvaluateQueueHealth(string queueName)
+        {
             if (!_queues.TryGetValue(queueName, out var queueObj))
                 return QueueHealthStatus.Unhealthy;
 
@@ -314,6 +326,20 @@ namespace SimpleSerialToApi.Services.Queues
             }
 
             return QueueHealthStatus.Unhealthy;
+        }
+
+        private void UpdateQueueHealthState(string queueName, QueueHealthStatus? status = null)
+        {
+            if (string.IsNullOrEmpty(queueName))
+                return;
+
+            var nextStatus = status ?? EvaluateQueueHealth(queueName);
+            var previousStatus = _queueHealthStatuses.AddOrUpdate(queueName, nextStatus, (_, _) => nextStatus);
+
+            if (previousStatus != nextStatus)
+            {
+                QueueHealthChanged?.Invoke(this, (queueName, nextStatus));
+            }
         }
 
         /// <summary>
@@ -465,6 +491,12 @@ namespace SimpleSerialToApi.Services.Queues
                         {
                             var batchResult = await processor.ProcessBatchAsync(messages);
                             await HandleBatchResult(queue, messages, batchResult);
+
+                            if (queue is ConcurrentMessageQueue<T> concreteQueue &&
+                                concreteQueue.ProcessingIntervalMs > 0)
+                            {
+                                await Task.Delay(concreteQueue.ProcessingIntervalMs, cancellationToken);
+                            }
                         }
                         else
                         {
@@ -492,7 +524,7 @@ namespace SimpleSerialToApi.Services.Queues
                     // Expected when cancellation is requested
                     break;
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Log error and continue processing
                     // In a real implementation, you'd use proper logging here
@@ -583,7 +615,7 @@ namespace SimpleSerialToApi.Services.Queues
                         Task.Delay(1000).Wait();
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Log error but continue cleanup
                 }
@@ -595,7 +627,7 @@ namespace SimpleSerialToApi.Services.Queues
                     {
                         queue.Dispose();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         // Error disposing queue - continue cleanup
                     }

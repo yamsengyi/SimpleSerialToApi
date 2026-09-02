@@ -41,6 +41,7 @@ namespace SimpleSerialToApi.Models
         private string _authToken = string.Empty;
         private int _timeoutSeconds = 30;
         private int _retryCount = 3;
+        private int _priority = 5;
 
         public bool IsEnabled
         {
@@ -140,6 +141,19 @@ namespace SimpleSerialToApi.Models
         {
             get => _retryCount;
             set { _retryCount = value; OnPropertyChanged(nameof(RetryCount)); }
+        }
+
+        /// <summary>
+        /// 시나리오 실행 우선순위 (0~10, 값이 클수록 먼저 실행)
+        /// </summary>
+        public int Priority
+        {
+            get => _priority;
+            set
+            {
+                _priority = Math.Clamp(value, 0, 10);
+                OnPropertyChanged(nameof(Priority));
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

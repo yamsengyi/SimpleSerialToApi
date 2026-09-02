@@ -136,6 +136,11 @@ namespace SimpleSerialToApi.Models
         public int BatchTimeoutMs { get; set; } = 5000;
 
         /// <summary>
+        /// Minimum interval between processing batches in milliseconds
+        /// </summary>
+        public int ProcessingIntervalMs { get; set; } = 0;
+
+        /// <summary>
         /// Maximum number of retry attempts for failed messages
         /// </summary>
         public int RetryCount { get; set; } = 3;

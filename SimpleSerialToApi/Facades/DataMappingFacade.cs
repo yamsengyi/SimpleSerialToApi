@@ -89,7 +89,8 @@ namespace SimpleSerialToApi.Facades
                     TransmissionType = TransmissionType.Api,
                     ApiMethod = "GET",
                     ApiUrl = "",
-                    ApiEndpoint = ""
+                    ApiEndpoint = "",
+                    Priority = 0
                 };
 
                 MappingScenarios.Add(newScenario);
@@ -177,7 +178,8 @@ namespace SimpleSerialToApi.Facades
                     ContentType = source.ContentType,
                     AuthToken = source.AuthToken,
                     TimeoutSeconds = source.TimeoutSeconds,
-                    RetryCount = source.RetryCount
+                    RetryCount = source.RetryCount,
+                    Priority = source.Priority
                 };
 
                 var idx = MappingScenarios.IndexOf(source);
@@ -228,10 +230,13 @@ namespace SimpleSerialToApi.Facades
 
             if (result.TransmissionType == TransmissionType.Api)
             {
-                // URL의 {data}는 원본 데이터(originalData)로 치환 (실제 전송 로직과 일치)
-                var url = result.ApiEndpoint ?? "/";
-                url = _reservedWordService.ProcessReservedWords(url);
-                url = url.Replace("{data}", result.OriginalData);
+                var url = GetApiEndpointForScenario(
+                    new DataMappingScenario
+                    {
+                        ApiUrl = "",
+                        ApiEndpoint = result.ApiEndpoint
+                    },
+                    result.ProcessedData);
 
                 // body 내용이 있을 때만 -d 출력
                 var curlData = string.IsNullOrEmpty(result.ProcessedData)
@@ -305,11 +310,20 @@ namespace SimpleSerialToApi.Facades
             var baseUrl = scenario.ApiUrl?.TrimEnd('/') ?? "";
             var path = scenario.ApiEndpoint?.Trim() ?? "";
 
-            // ApiEndpoint가 이미 전체 URL(http:// 또는 https:// 포함)인 경우 그대로 사용
-            if (path.Contains("://"))
-                return path;
+            if (string.IsNullOrEmpty(path))
+                return baseUrl;
 
-            var trimmedPath = path.TrimStart('/');
+            var resolvedPath = _reservedWordService.ProcessReservedWords(path);
+            if (!string.IsNullOrEmpty(data))
+            {
+                resolvedPath = resolvedPath.Replace("{data}", data);
+            }
+
+            // ApiEndpoint가 이미 전체 URL(http:// 또는 https:// 포함)인 경우 그대로 사용
+            if (resolvedPath.Contains("://"))
+                return resolvedPath;
+
+            var trimmedPath = resolvedPath.TrimStart('/');
 
             if (string.IsNullOrEmpty(baseUrl))
             {

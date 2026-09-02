@@ -77,6 +77,11 @@ namespace SimpleSerialToApi.Services.Queues
         public int MaxCapacity => _configuration.MaxSize;
 
         /// <summary>
+        /// Minimum interval between processing batches in milliseconds
+        /// </summary>
+        public int ProcessingIntervalMs => _configuration.ProcessingIntervalMs;
+
+        /// <summary>
         /// Name of the queue
         /// </summary>
         public string Name => _configuration.Name;

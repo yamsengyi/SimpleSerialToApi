@@ -96,6 +96,8 @@ namespace SimpleSerialToApi.Services
                 // 활성화된 시나리오들 중에서 해당 소스와 매칭되는 것들 찾기
                 var matchingScenarios = _scenarios
                     .Where(s => s.IsEnabled && s.Source == source)
+                    .OrderByDescending(s => s.Priority)
+                    .ThenBy(s => _scenarios.IndexOf(s))
                     .ToList();
 
                 _logger.LogDebug("Processing data from {Source}: '{Data}' with {Count} scenarios", 
@@ -107,7 +109,13 @@ namespace SimpleSerialToApi.Services
                     {
                         var result = await ProcessScenario(data, scenario);
                         results.Add(result);
-                        
+
+                        _logger.LogInformation(
+                            "Scenario matched and executed: '{ScenarioName}' (Priority={Priority}, LoadOrder={LoadOrder})",
+                            scenario.Name,
+                            scenario.Priority,
+                            _scenarios.IndexOf(scenario));
+
                         // 매핑 처리 이벤트 발생
                         MappingProcessed?.Invoke(this, new MappingProcessedEventArgs
                         {
@@ -255,7 +263,8 @@ namespace SimpleSerialToApi.Services
                         ApiMethod = "POST",
                         ApiUrl = "",
                         ApiEndpoint = "/api/test2.html",
-                        IsEnabled = true
+                        IsEnabled = true,
+                        Priority = 0
                     },
                     new DataMappingScenario
                     {
@@ -268,7 +277,8 @@ namespace SimpleSerialToApi.Services
                         ApiUrl = "http://test.2bt.kr:9999",
                         ApiEndpoint = "/api/v2/dispatches/qr-codes?dn=@deviceId\u0026br={data}",
                         ContentType = "text/html",
-                        IsEnabled = true
+                        IsEnabled = true,
+                        Priority = 10
                     },
                     new DataMappingScenario
                     {
@@ -280,7 +290,8 @@ namespace SimpleSerialToApi.Services
                         ApiMethod = "POST",
                         ApiUrl = "http://diveinto.space:54321",
                         ApiEndpoint = "/api/qr_bypasser.aspx",
-                        IsEnabled = true
+                        IsEnabled = true,
+                        Priority = 8
                     }
                 };
 

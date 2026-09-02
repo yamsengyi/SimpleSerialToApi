@@ -33,6 +33,9 @@ namespace SimpleSerialToApi.Facades
         /// <summary>모든 모니터 로그 클리어</summary>
         void ClearLogs();
 
+        /// <summary>메시지 큐와 모든 모니터 로그 클리어</summary>
+        Task ClearLogsAsync();
+
         /// <summary>현재 큐 카운트</summary>
         int QueueCount { get; }
 

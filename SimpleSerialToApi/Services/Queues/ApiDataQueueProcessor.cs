@@ -22,6 +22,7 @@ namespace SimpleSerialToApi.Services.Queues
         private readonly IConfigurationService _configurationService;
         private readonly ReservedWordService _reservedWordService;
         private readonly ILogger<ApiDataQueueProcessor> _logger;
+        private readonly ApiMonitorService _apiMonitorService;
 
         /// <summary>
         /// Maximum number of messages to process in a batch
@@ -49,12 +50,14 @@ namespace SimpleSerialToApi.Services.Queues
             HttpClient httpClient, 
             IConfigurationService configurationService, 
             ReservedWordService reservedWordService,
-            ILogger<ApiDataQueueProcessor> logger)
+            ILogger<ApiDataQueueProcessor> logger,
+            ApiMonitorService apiMonitorService)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
             _reservedWordService = reservedWordService ?? throw new ArgumentNullException(nameof(reservedWordService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _apiMonitorService = apiMonitorService ?? throw new ArgumentNullException(nameof(apiMonitorService));
         }
 
         /// <summary>
@@ -70,6 +73,7 @@ namespace SimpleSerialToApi.Services.Queues
             }
 
             var stopwatch = Stopwatch.StartNew();
+            var requestId = string.Empty;
 
             try
             {
@@ -249,12 +253,22 @@ namespace SimpleSerialToApi.Services.Queues
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromMilliseconds(endpoint.Timeout));
 
                 // Send request
+                string? requestBody = requestMessage.Content == null
+                    ? null
+                    : await requestMessage.Content.ReadAsStringAsync();
+                requestId = _apiMonitorService.LogApiRequest(httpMethod, fullUrl, requestBody);
                 var response = await _httpClient.SendAsync(requestMessage, cts.Token);
                 stopwatch.Stop();
 
                 if (response.IsSuccessStatusCode)
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
+                    _apiMonitorService.LogApiResponse(
+                        requestId,
+                        response.StatusCode,
+                        responseContent,
+                        response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)),
+                        stopwatch.ElapsedMilliseconds);
                     
                     return ProcessingResult.CreateSuccess(stopwatch.Elapsed, new Dictionary<string, object>
                     {
@@ -267,6 +281,12 @@ namespace SimpleSerialToApi.Services.Queues
                 else
                 {
                     var errorContent = await response.Content.ReadAsStringAsync();
+                    _apiMonitorService.LogApiResponse(
+                        requestId,
+                        response.StatusCode,
+                        errorContent,
+                        response.Headers.ToDictionary(h => h.Key, h => string.Join(", ", h.Value)),
+                        stopwatch.ElapsedMilliseconds);
                     var shouldRetry = IsRetryableStatusCode(response.StatusCode);
                     
                     return ProcessingResult.CreateFailure(
@@ -278,16 +298,22 @@ namespace SimpleSerialToApi.Services.Queues
             catch (TaskCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
             {
                 stopwatch.Stop();
+                if (!string.IsNullOrEmpty(requestId))
+                    _apiMonitorService.LogApiError(requestId, ex);
                 return ProcessingResult.CreateFailure("Request timeout", true, stopwatch.Elapsed);
             }
             catch (HttpRequestException ex)
             {
                 stopwatch.Stop();
+                if (!string.IsNullOrEmpty(requestId))
+                    _apiMonitorService.LogApiError(requestId, ex);
                 return ProcessingResult.CreateFailure($"HTTP request error: {ex.Message}", true, stopwatch.Elapsed);
             }
             catch (Exception ex)
             {
                 stopwatch.Stop();
+                if (!string.IsNullOrEmpty(requestId))
+                    _apiMonitorService.LogApiError(requestId, ex);
                 return ProcessingResult.CreateFailure($"Unexpected error: {ex.Message}", false, stopwatch.Elapsed);
             }
         }
