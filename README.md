@@ -1,13 +1,15 @@
 # SimpleSerialToApi
 
-**SimpleSerialToApi**는 Serial 통신으로 장비 데이터를 수집하고, 메시지 단위로 Queue에 적재한 뒤, Timer 기반으로 주기적으로 HTTP API로 전송하는 간단하고 안정적인 Windows .NET 8 WPF 애플리케이션입니다.
+**SimpleSerialToApi**는 Serial 통신으로 장비 데이터를 수집하고, 시나리오에 따라 매핑한 뒤, 메시지 큐에서 설정된 간격으로 HTTP API 또는 다른 Serial 포트로 전송하는 Windows .NET 8 WPF 애플리케이션입니다.
 
 ## 주요 기능
 
 - **Serial 통신**: COM 포트로 장비 연결 및 데이터 수신
-- **HTTP API 전송**: Timer 기반 주기적 POST 전송
-- **WPF UI**: 연결/큐/전송 상태 실시간 표시
-- **기본 설정**: COM 포트, API URL, 전송 주기 설정
+- **HTTP API 전송**: 큐 기반 배치 처리, 재시도, 실제 HTTP 응답 모니터링
+- **WPF UI**: 연결/큐/전송 상태 및 Serial/API 모니터 실시간 표시
+- **시나리오 매핑**: JSON 기반 조건, 우선순위, 데이터 템플릿 및 전송 대상 설정
+- **기본 설정**: COM 포트, API 연결 테스트 URL, 배치 전송 간격 설정
+- **자동 연결**: 마지막으로 성공한 Serial 포트를 다음 실행 시 자동 연결
 
 ## 시스템 요구사항
 
@@ -91,11 +93,8 @@ SimpleSerialToApi/
 │   ├── Diagnostics/              # 진단 및 로깅
 │   └── Recovery/                 # 복구 및 재시도 로직
 ├── ViewModels/
-│   ├── MainViewModel.cs          # 메인 뷰모델
-│   ├── SettingsViewModel.cs      # 설정 뷰모델
-│   ├── SerialStatusViewModel.cs  # 시리얼 상태 뷰모델
-│   ├── ApiStatusViewModel.cs     # API 상태 뷰모델
-│   └── QueueStatusViewModel.cs   # 큐 상태 뷰모델
+│   ├── MainViewModel.cs          # 메인 뷰모델 및 화면 바인딩
+│   └── RelayCommand.cs           # WPF 명령 구현
 ├── Views/
 │   ├── DataMappingWindow.xaml    # 데이터 매핑 설정 UI
 │   ├── SerialConfigWindow.xaml   # 시리얼 설정 UI
@@ -110,11 +109,21 @@ SimpleSerialToApi/
 ├── Configuration/
 │   └── ConfigurationSections.cs  # 설정 섹션 정의
 ├── Converters/
-│   └── StatusConverters.cs       # WPF 값 변환기
+│   └── StringToVisibilityConverter.cs # WPF 값 변환기
 ├── MainWindow.xaml/.cs           # 메인 윈도우
 ├── App.xaml/.cs                  # 앱 엔트리포인트
 └── App.config                    # 애플리케이션 설정
 ```
+
+### 전송 동작
+
+1. Serial 수신 데이터는 `SerialMonitorService`에 기록되고 메시지 단위로 분리됩니다.
+2. 활성화된 매핑 시나리오를 우선순위가 높은 순서로 적용합니다. 같은 우선순위에서는 JSON 로드 순서를 유지합니다.
+3. API 대상 데이터는 `ApiDataQueue`에 적재됩니다.
+4. 큐 처리기는 `QueueTransmissionInterval` 설정 간격마다 배치를 처리하고, 성공/실패한 실제 HTTP 응답을 API 모니터에 기록합니다.
+5. 일시적인 HTTP 오류는 재시도하며, 재시도 한도를 초과하면 Dead Letter Queue로 이동합니다.
+
+메인 화면의 `Test API URL`은 연결 테스트 전용입니다. 실제 데이터 전송 URL과 HTTP 메서드는 데이터 매핑 시나리오에서 설정합니다.
 
 ## 기술 스택
 
